@@ -4,7 +4,7 @@ import { Button } from '../components/ui/Button';
 import { DataService } from '../services/data';
 import { Project, Testimonial, SiteContent } from '../types';
 import { DEFAULT_SITE_CONTENT } from '../constants';
-import { ArrowRight, Star, Calendar, Heart, Clock, Quote } from 'lucide-react';
+import { ArrowRight, Star, Heart, Clock, Quote, Sparkles } from 'lucide-react';
 
 export const Home: React.FC = () => {
   const [featuredProjects, setFeaturedProjects] = useState<Project[]>([]);
@@ -35,46 +35,55 @@ export const Home: React.FC = () => {
   }, []);
 
   if (isLoading) {
-    return <div className="h-screen flex items-center justify-center bg-white"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div></div>;
+    return <div className="h-screen flex items-center justify-center bg-secondary"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>;
   }
 
   // Helper to get icon
   const getIcon = (name: string) => {
     switch (name) {
-      case 'Heart': return <Heart size={32} />;
-      case 'Clock': return <Clock size={32} />;
-      case 'Star': return <Star size={32} />;
-      default: return <Star size={32} />;
+      case 'Heart': return <Heart strokeWidth={1} size={36} />;
+      case 'Clock': return <Clock strokeWidth={1} size={36} />;
+      case 'Star': return <Sparkles strokeWidth={1} size={36} />;
+      default: return <Star strokeWidth={1} size={36} />;
     }
   };
 
   return (
-    <div className="animate-fade-in">
-      {/* Hero Section */}
-      <section className="relative h-screen flex items-center justify-center text-center overflow-hidden">
-        {/* Background Image with Overlay */}
+    <div className="animate-fade-in overflow-x-hidden">
+      {/* --- HERO SECTION --- */}
+      <section className="relative h-[90vh] md:h-screen flex items-end md:items-center justify-center text-center overflow-hidden">
+        {/* Background Image with Slow Zoom Animation */}
         <div className="absolute inset-0 z-0">
-          <img 
-            src={content.hero.backgroundImage} 
-            alt="Elegant Wedding" 
-            className="w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 bg-black/40"></div>
+          <div className="w-full h-full animate-slow-zoom">
+            <img 
+              src={content.hero.backgroundImage} 
+              alt="Elegant Wedding" 
+              className="w-full h-full object-cover"
+            />
+          </div>
+          {/* Advanced Gradient Overlay for Readability */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-black/10 md:bg-black/40"></div>
         </div>
 
-        <div className="relative z-10 container mx-auto px-6 text-white max-w-4xl">
-          <h1 className="font-serif text-5xl md:text-7xl mb-6 leading-tight animate-slide-up whitespace-pre-line">
+        <div className="relative z-10 container mx-auto px-6 pb-24 md:pb-0 text-white max-w-5xl">
+          <p className="font-sans text-xs md:text-sm tracking-[0.3em] uppercase mb-4 text-primary-light opacity-90 animate-slide-up">
+            Premium Wedding Planner
+          </p>
+          <h1 className="font-serif text-4xl md:text-7xl lg:text-8xl mb-6 leading-[1.1] animate-slide-up whitespace-pre-line drop-shadow-lg">
             {content.hero.headline}
           </h1>
-          <p className="font-sans text-lg md:text-xl tracking-wide mb-10 text-gray-200 animate-slide-up" style={{ animationDelay: '0.2s' }}>
+          <p className="font-sans text-base md:text-xl font-light tracking-wide mb-10 text-gray-200 max-w-2xl mx-auto animate-slide-up leading-relaxed opacity-90" style={{ animationDelay: '0.2s' }}>
             {content.hero.subheadline}
           </p>
-          <div className="flex flex-col md:flex-row justify-center gap-4 animate-slide-up" style={{ animationDelay: '0.4s' }}>
-            <Link to="/contact">
-              <Button size="lg" variant="primary">{content.hero.ctaText}</Button>
+          
+          <div className="flex flex-col md:flex-row justify-center gap-4 w-full md:w-auto animate-slide-up" style={{ animationDelay: '0.4s' }}>
+            <Link to="/contact" className="w-full md:w-auto">
+              <Button size="lg" variant="primary" className="w-full md:w-auto shadow-xl border border-transparent hover:border-primary-light">
+                {content.hero.ctaText}
+              </Button>
             </Link>
-            <Link to="/portfolio">
-              <Button size="lg" variant="outline" className="border-white text-white hover:bg-white hover:text-dark">
+            <Link to="/portfolio" className="w-full md:w-auto">
+              <Button size="lg" variant="white" className="w-full md:w-auto bg-white/10 backdrop-blur-sm border border-white/30 text-white hover:bg-white hover:text-dark">
                 View Portfolio
               </Button>
             </Link>
@@ -82,95 +91,108 @@ export const Home: React.FC = () => {
         </div>
       </section>
 
-      {/* Signature Style */}
-      <section className="py-24 bg-white">
+      {/* --- SIGNATURE STYLE --- */}
+      <section className="py-20 md:py-32 bg-white">
         <div className="container mx-auto px-6">
-          <div className="text-center mb-16">
-            <h2 className="font-serif text-3xl md:text-4xl text-dark mb-4">Our Signature Approach</h2>
-            <div className="w-16 h-1 bg-primary mx-auto"></div>
+          <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-6">
+            <div className="max-w-xl">
+              <span className="text-primary text-xs font-bold tracking-[0.2em] uppercase mb-3 block">Our Philosophy</span>
+              <h2 className="font-serif text-3xl md:text-5xl text-dark leading-tight">
+                Curating timeless moments with precision.
+              </h2>
+            </div>
+            <div className="w-full md:w-auto h-px bg-gray-200 flex-grow ml-10 hidden md:block"></div>
           </div>
           
-          <div className="grid md:grid-cols-3 gap-12 text-center">
+          <div className="grid md:grid-cols-3 gap-8 md:gap-12">
             {content.signatureStyles.map((item, idx) => (
-              <div key={item.id} className="p-8 hover:bg-secondary rounded-lg transition-colors duration-300">
-                <div className="text-primary mb-6 flex justify-center">{getIcon(item.iconName)}</div>
-                <h3 className="font-serif text-xl mb-4 text-dark">{item.title}</h3>
-                <p className="text-gray-600 leading-relaxed">{item.description}</p>
+              <div key={item.id} className="group p-8 border border-gray-100 rounded-2xl hover:border-primary/30 hover:shadow-2xl hover:shadow-primary/5 transition-all duration-500 bg-secondary/30">
+                <div className="text-primary mb-6 group-hover:scale-110 transition-transform duration-500 origin-left">
+                  {getIcon(item.iconName)}
+                </div>
+                <h3 className="font-serif text-xl mb-3 text-dark">{item.title}</h3>
+                <p className="text-gray-500 text-sm leading-relaxed">{item.description}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Featured Projects */}
-      <section className="py-24 bg-secondary">
-        <div className="container mx-auto px-6">
+      {/* --- FEATURED PROJECTS (HORIZONTAL SCROLL ON MOBILE) --- */}
+      <section className="py-20 md:py-32 bg-dark text-white overflow-hidden relative">
+        <div className="container mx-auto px-6 relative z-10">
           <div className="flex justify-between items-end mb-12">
             <div>
-              <h2 className="font-serif text-3xl md:text-4xl text-dark mb-2">Featured Stories</h2>
-              <p className="text-gray-500">Real weddings, real moments.</p>
+              <span className="text-primary text-xs font-bold tracking-[0.2em] uppercase mb-3 block">Portfolio</span>
+              <h2 className="font-serif text-3xl md:text-5xl text-white">Real Weddings</h2>
             </div>
-            <Link to="/portfolio" className="hidden md:flex items-center text-primary hover:text-primary-dark transition-colors">
-              View All <ArrowRight size={16} className="ml-2" />
+            <Link to="/portfolio" className="hidden md:flex items-center text-sm tracking-widest uppercase hover:text-primary transition-colors border-b border-transparent hover:border-primary pb-1">
+              View All Works
             </Link>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            {featuredProjects.map((project) => (
-              <Link to="/portfolio" key={project.id} className="group cursor-pointer">
-                <div className="relative overflow-hidden rounded-lg aspect-[3/4] mb-4 shadow-md">
+          {/* Horizontal Scroll Container for Mobile */}
+          <div className="flex md:grid md:grid-cols-3 gap-6 overflow-x-auto md:overflow-visible snap-x snap-mandatory no-scrollbar -mx-6 px-6 md:mx-0 md:px-0 pb-8 md:pb-0">
+            {featuredProjects.map((project, idx) => (
+              <Link 
+                to="/portfolio" 
+                key={project.id} 
+                className={`group relative flex-shrink-0 w-[85vw] md:w-auto snap-center cursor-pointer block ${idx === 1 ? 'md:mt-12' : ''}`}
+              >
+                <div className="relative overflow-hidden rounded-sm aspect-[3/4] mb-5 bg-gray-800">
                   <img 
                     src={project.coverImage} 
                     alt={project.title} 
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                    className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110 opacity-90 group-hover:opacity-100"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-6">
-                    <span className="text-white font-serif italic text-lg">View Gallery</span>
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-500 flex flex-col justify-end p-6">
+                    <span className="text-primary text-xs tracking-widest uppercase mb-1">{project.themeTags[0]}</span>
+                    <span className="text-white font-serif text-2xl italic">{project.title}</span>
                   </div>
                 </div>
-                <h3 className="font-serif text-xl text-dark group-hover:text-primary transition-colors">{project.title}</h3>
-                <p className="text-sm text-gray-500 flex items-center mt-1">
-                  <span className="mr-2 uppercase tracking-wider text-xs">{project.themeTags[0]}</span> 
-                  &bull; 
-                  <span className="ml-2">{project.location}</span>
-                </p>
+                <div className="md:hidden">
+                   <h3 className="font-serif text-xl text-white mb-1">{project.title}</h3>
+                   <p className="text-xs text-gray-400 uppercase tracking-wide">{project.location}</p>
+                </div>
               </Link>
             ))}
+            
+            {/* Mobile "View All" Card */}
+            <div className="md:hidden flex-shrink-0 w-[40vw] snap-center flex items-center justify-center">
+               <Link to="/portfolio" className="w-20 h-20 rounded-full border border-gray-600 flex items-center justify-center text-white active:bg-white active:text-dark transition-colors">
+                  <ArrowRight size={24} />
+               </Link>
+            </div>
           </div>
           
           <div className="mt-8 text-center md:hidden">
-            <Link to="/portfolio" className="text-primary font-bold">View All Projects</Link>
+             <p className="text-xs text-gray-500 italic">Swipe to explore</p>
           </div>
         </div>
       </section>
 
-      {/* Testimonials Section */}
+      {/* --- TESTIMONIALS --- */}
       {testimonials.length > 0 && (
-        <section className="py-24 bg-white relative overflow-hidden">
-          <div className="absolute top-0 left-0 text-primary opacity-5 transform -translate-x-10 -translate-y-10">
-            <Quote size={200} />
-          </div>
-          <div className="container mx-auto px-6 relative z-10">
-            <div className="text-center mb-16">
-              <h2 className="font-serif text-3xl md:text-4xl text-dark mb-4">Love Notes</h2>
-              <p className="text-gray-500">Words from our happy couples.</p>
+        <section className="py-20 md:py-32 bg-secondary relative">
+          <div className="container mx-auto px-6">
+            <div className="text-center mb-16 max-w-2xl mx-auto">
+              <Quote className="text-primary/20 mx-auto mb-6" size={60} />
+              <h2 className="font-serif text-3xl md:text-5xl text-dark mb-6">Love Notes</h2>
             </div>
-            <div className="grid md:grid-cols-2 gap-10 max-w-4xl mx-auto">
+            
+            <div className="grid md:grid-cols-2 gap-8 md:gap-12 max-w-5xl mx-auto">
               {testimonials.map((testi) => (
-                <div key={testi.id} className="bg-secondary p-8 rounded-xl relative">
-                  <div className="flex text-yellow-400 mb-4">
+                <div key={testi.id} className="bg-white p-8 md:p-10 rounded-sm shadow-sm border border-gray-100 hover:shadow-xl transition-shadow duration-300">
+                  <div className="flex text-primary mb-6">
                     {[...Array(5)].map((_, i) => (
-                      <Star key={i} size={16} fill={i < testi.rating ? "currentColor" : "none"} className={i < testi.rating ? "" : "text-gray-300"} />
+                      <Star key={i} size={14} fill={i < testi.rating ? "currentColor" : "none"} className={i < testi.rating ? "" : "text-gray-200"} />
                     ))}
                   </div>
-                  <p className="text-gray-600 italic mb-6 leading-relaxed">"{testi.quote}"</p>
-                  <div className="flex items-center">
-                    <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center text-primary font-serif font-bold mr-4">
-                      {testi.name.charAt(0)}
-                    </div>
+                  <p className="text-gray-600 italic text-lg mb-8 leading-relaxed font-serif">"{testi.quote}"</p>
+                  <div className="flex items-center border-t border-gray-50 pt-6">
                     <div>
-                      <h4 className="font-bold text-dark text-sm">{testi.name}</h4>
-                      <p className="text-xs text-gray-500">{testi.role} • {testi.eventType}</p>
+                      <h4 className="font-bold text-dark text-sm uppercase tracking-wider">{testi.name}</h4>
+                      <p className="text-xs text-gray-400 mt-1">{testi.role} • {testi.eventType}</p>
                     </div>
                   </div>
                 </div>
@@ -180,15 +202,20 @@ export const Home: React.FC = () => {
         </section>
       )}
 
-      {/* CTA Section */}
-      <section className="py-24 bg-dark text-white text-center">
-        <div className="container mx-auto px-6 max-w-3xl">
-          <h2 className="font-serif text-4xl mb-6">{content.ctaSection.title}</h2>
-          <p className="text-gray-300 mb-10 text-lg">
+      {/* --- CTA SECTION --- */}
+      <section className="py-24 md:py-32 bg-white text-center relative overflow-hidden">
+        {/* Decorative Circle */}
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-primary/5 rounded-full blur-3xl z-0"></div>
+        
+        <div className="container mx-auto px-6 max-w-3xl relative z-10">
+          <h2 className="font-serif text-4xl md:text-6xl text-dark mb-6 leading-tight">{content.ctaSection.title}</h2>
+          <p className="text-gray-500 mb-10 text-lg md:text-xl font-light">
             {content.ctaSection.description}
           </p>
           <Link to="/contact">
-            <Button variant="primary" size="lg">{content.ctaSection.buttonText}</Button>
+            <Button variant="primary" size="lg" className="shadow-lg hover:shadow-primary/30 px-10 py-4 text-sm tracking-[0.2em] uppercase">
+              {content.ctaSection.buttonText}
+            </Button>
           </Link>
         </div>
       </section>

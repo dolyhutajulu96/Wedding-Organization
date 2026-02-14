@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, ArrowRight } from 'lucide-react';
 import { BRAND_NAME } from '../../constants';
+import { Button } from '../ui/Button';
 
 export const Navbar: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -16,10 +17,21 @@ export const Navbar: React.FC = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Close mobile menu on route change
+  // Close mobile menu on route change & Reset Body Scroll
   useEffect(() => {
     setIsOpen(false);
+    document.body.style.overflow = 'unset';
   }, [location]);
+
+  // Lock body scroll when menu is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => { document.body.style.overflow = 'unset'; };
+  }, [isOpen]);
 
   const navLinks = [
     { name: 'Home', path: '/' },
@@ -30,84 +42,114 @@ export const Navbar: React.FC = () => {
     { name: 'Contact', path: '/contact' },
   ];
 
-  // Navbar background logic
+  // Logic: Navbar is transparent ONLY on Home page at the top. 
+  // Everywhere else (or when scrolled), it has a background.
+  const isHome = location.pathname === '/';
+  const isTransparent = isHome && !scrolled && !isOpen;
+
   const headerClass = `fixed top-0 left-0 right-0 z-50 transition-all duration-500 ease-in-out ${
-    scrolled || isOpen 
-      ? 'bg-white/95 backdrop-blur-md shadow-sm py-4' 
-      : 'bg-transparent py-6'
+    !isTransparent ? 'bg-white/95 backdrop-blur-md shadow-sm py-3 md:py-4' : 'bg-transparent py-5 md:py-6'
   }`;
 
-  const logoClass = `font-serif text-2xl font-bold tracking-widest transition-colors duration-300 ${
-    scrolled || isOpen ? 'text-primary' : 'text-primary md:text-white'
+  const logoClass = `font-serif text-xl md:text-2xl font-bold tracking-widest transition-colors duration-300 ${
+    !isTransparent ? 'text-primary' : 'text-white'
   }`;
 
-  const navLinkClass = (isActive: boolean) => `
-    text-sm tracking-widest uppercase transition-colors duration-300 relative group
-    ${scrolled || isOpen ? 'text-dark hover:text-primary' : 'text-white hover:text-primary-light'}
-    ${isActive ? 'text-primary' : ''}
-  `;
+  const toggleBtnClass = `md:hidden focus:outline-none z-[60] p-2 transition-colors duration-300 ${
+    isOpen ? 'fixed right-6 top-5 text-dark' : (!isTransparent ? 'text-dark' : 'text-white')
+  }`;
 
   return (
-    <header className={headerClass}>
-      <div className="container mx-auto px-6 flex justify-between items-center relative z-50">
-        <Link to="/" className={logoClass}>
-          {BRAND_NAME.toUpperCase()}
-        </Link>
+    <>
+      <header className={headerClass}>
+        <div className="container mx-auto px-6 flex justify-between items-center relative z-50">
+          <Link to="/" className={logoClass}>
+            {BRAND_NAME.toUpperCase()}
+          </Link>
 
-        {/* Desktop Menu */}
-        <nav className="hidden md:flex space-x-8">
-          {navLinks.map((link) => (
-            <Link 
-              key={link.name} 
-              to={link.path}
-              className={navLinkClass(location.pathname === link.path)}
-            >
-              {link.name}
-              {/* Hover Underline Animation */}
-              <span className={`absolute -bottom-1 left-0 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full ${location.pathname === link.path ? 'w-full' : ''}`}></span>
+          {/* Desktop Menu */}
+          <nav className="hidden md:flex space-x-8 items-center">
+            {navLinks.map((link) => (
+              <Link 
+                key={link.name} 
+                to={link.path}
+                className={`text-xs tracking-[0.2em] uppercase transition-colors duration-300 relative group font-bold ${
+                  !isTransparent ? 'text-dark hover:text-primary' : 'text-white/90 hover:text-white'
+                } ${location.pathname === link.path ? 'text-primary' : ''}`}
+              >
+                {link.name}
+                <span className={`absolute -bottom-2 left-0 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full ${location.pathname === link.path ? 'w-full' : ''}`}></span>
+              </Link>
+            ))}
+            <Link to="/contact">
+              <Button variant={!isTransparent ? "primary" : "white"} size="sm" className="ml-6 shadow-none hover:shadow-lg">
+                  Book Consultation
+              </Button>
             </Link>
-          ))}
-        </nav>
+          </nav>
 
-        {/* Mobile Toggle */}
-        <button 
-          className="md:hidden focus:outline-none z-50 p-2"
-          onClick={() => setIsOpen(!isOpen)}
-          aria-label="Toggle Menu"
-        >
-          {isOpen ? (
-            <X className="text-dark transition-transform duration-300 rotate-90" size={24} />
-          ) : (
-            <Menu className={`transition-colors duration-300 ${scrolled ? 'text-dark' : 'text-dark md:text-white'}`} size={24} />
-          )}
-        </button>
-      </div>
+          {/* Mobile Toggle Button */}
+          <button 
+            className={toggleBtnClass}
+            onClick={() => setIsOpen(!isOpen)}
+            aria-label="Toggle Menu"
+          >
+            {isOpen ? <X size={28} /> : <Menu size={28} />}
+          </button>
+        </div>
+      </header>
 
-      {/* Mobile Menu Overlay */}
+      {/* Mobile Menu Overlay - Full Screen Premium Style */}
       <div 
-        className={`fixed inset-0 bg-white z-40 md:hidden flex flex-col pt-24 px-8 transition-all duration-500 ease-in-out transform ${
+        className={`fixed inset-0 bg-[#F9F9F7] z-50 md:hidden flex flex-col justify-center items-center transition-all duration-700 ease-[cubic-bezier(0.77,0,0.175,1)] ${
           isOpen ? 'opacity-100 translate-y-0 visible' : 'opacity-0 -translate-y-full invisible'
         }`}
       >
-        <div className="flex flex-col space-y-6">
+        <div className="flex flex-col space-y-6 text-center w-full px-8">
+          <div className="mb-8">
+             <span className="text-xs font-bold text-gray-400 tracking-[0.3em] uppercase block mb-2">Menu</span>
+             <div className="w-8 h-0.5 bg-primary mx-auto"></div>
+          </div>
+
           {navLinks.map((link, idx) => (
             <Link 
               key={link.name} 
               to={link.path}
-              className={`text-2xl font-serif text-dark border-b border-gray-100 pb-4 transition-transform duration-500 delay-[${idx * 50}ms] ${isOpen ? 'translate-x-0 opacity-100' : '-translate-x-4 opacity-0'}`}
-              style={{ transitionDelay: `${idx * 50}ms` }}
+              className={`font-serif text-4xl text-dark transition-all duration-700 transform hover:text-primary ${
+                isOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'
+              }`}
+              style={{ transitionDelay: `${150 + idx * 100}ms` }}
             >
               {link.name}
             </Link>
           ))}
-          <Link 
-            to="/admin/login" 
-            className={`text-sm text-muted uppercase pt-4 transition-opacity duration-500 delay-300 ${isOpen ? 'opacity-100' : 'opacity-0'}`}
+          
+          {/* Mobile Menu Footer Actions */}
+          <div 
+             className={`pt-10 flex flex-col items-center gap-6 transition-all duration-700 transform ${
+                isOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'
+             }`}
+             style={{ transitionDelay: '700ms' }}
           >
-            Admin Access
-          </Link>
+             <Link to="/contact" className="w-full max-w-xs">
+                <Button fullWidth size="lg" className="shadow-xl py-4 text-sm tracking-widest uppercase">
+                  Book Consultation <ArrowRight size={16} className="ml-2" />
+                </Button>
+             </Link>
+             
+             <div className="flex gap-8 mt-4 text-sm font-bold text-gray-400 tracking-wider">
+               <a href="#" className="hover:text-primary transition-colors">INSTAGRAM</a>
+               <a href="#" className="hover:text-primary transition-colors">WHATSAPP</a>
+             </div>
+
+             <div className="mt-8 pt-8 border-t border-gray-200 w-full max-w-[100px] mx-auto"></div>
+             
+             <Link to="/admin/login" className="text-xs text-gray-300 hover:text-gray-500 uppercase tracking-widest">
+                Admin Access
+             </Link>
+          </div>
         </div>
       </div>
-    </header>
+    </>
   );
 };

@@ -4,29 +4,32 @@ import { DataService } from '../../services/data';
 import { Inquiry, ServicePackage, Project, SiteContent, Testimonial, SiteSettings } from '../../types';
 import { DEFAULT_SITE_CONTENT, DEFAULT_SETTINGS } from '../../constants';
 import { Button } from '../../components/ui/Button';
-import { LogOut, LayoutDashboard, Users, FileText, Settings, Search, Filter, Save, Plus, Trash2, Edit2, Image as ImageIcon, MessageSquare, Star, ExternalLink, X, Check, DollarSign, Upload } from 'lucide-react';
+import { LogOut, LayoutDashboard, Users, FileText, Settings, Search, Filter, Save, Plus, Trash2, Edit2, Image as ImageIcon, MessageSquare, Star, ExternalLink, X, Check, DollarSign, Upload, Menu } from 'lucide-react';
 import { auth } from '../../services/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 
 // --- HELPER COMPONENTS (Moved outside to prevent re-render focus loss) ---
 
-const InputGroup = ({ label, children }: { label: string, children: React.ReactNode }) => (
+const InputGroup = ({ label, children, required, error }: { label: string, children?: React.ReactNode, required?: boolean, error?: string }) => (
   <div className="mb-4">
-    <label className="block text-sm font-semibold text-gray-700 mb-1.5">{label}</label>
+    <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+      {label} {required && <span className="text-red-500">*</span>}
+    </label>
     {children}
+    {error && <p className="text-red-500 text-xs mt-1 animate-fade-in">{error}</p>}
   </div>
 );
 
-const StyledInput = (props: React.InputHTMLAttributes<HTMLInputElement>) => (
+const StyledInput = ({ hasError, className, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { hasError?: boolean }) => (
   <input 
-    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-gray-400"
+    className={`w-full px-4 py-2.5 bg-white border rounded-lg text-gray-900 focus:outline-none focus:ring-2 transition-all placeholder:text-gray-400 ${hasError ? 'border-red-500 focus:ring-red-200 focus:border-red-500' : 'border-gray-300 focus:ring-primary/20 focus:border-primary'} ${className || ''}`}
     {...props}
   />
 );
 
-const StyledTextArea = (props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => (
+const StyledTextArea = ({ hasError, className, ...props }: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { hasError?: boolean }) => (
   <textarea 
-    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none placeholder:text-gray-400"
+    className={`w-full px-4 py-2.5 bg-white border rounded-lg text-gray-900 focus:outline-none focus:ring-2 transition-all resize-none placeholder:text-gray-400 ${hasError ? 'border-red-500 focus:ring-red-200 focus:border-red-500' : 'border-gray-300 focus:ring-primary/20 focus:border-primary'} ${className || ''}`}
     {...props}
   />
 );
@@ -43,17 +46,17 @@ interface ModalProps {
 const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, footer }) => {
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all scale-100">
-        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/80">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in overflow-y-auto">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all scale-100 flex flex-col max-h-[90vh]">
+        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/80 sticky top-0 z-10">
            <h3 className="font-serif text-lg font-bold text-dark">{title}</h3>
            <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-200 transition-colors"><X size={20} className="text-gray-500" /></button>
         </div>
-        <div className="p-6 max-h-[70vh] overflow-y-auto">
+        <div className="p-6 overflow-y-auto custom-scrollbar">
           {children}
         </div>
         {footer && (
-          <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex justify-end gap-3">
+          <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex flex-col-reverse md:flex-row justify-end gap-3 sticky bottom-0 z-10">
             {footer}
           </div>
         )}
@@ -78,6 +81,8 @@ export const Dashboard: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({}); // Validation Errors
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile Sidebar Toggle
   
   // Modal State
   const [modalType, setModalType] = useState<'project' | 'package' | 'testimonial' | null>(null);
@@ -229,6 +234,7 @@ export const Dashboard: React.FC = () => {
   const openModal = (type: 'project' | 'package' | 'testimonial') => {
     setModalType(type);
     setNewItemData({}); // Clear for new item
+    setErrors({}); // Clear validation errors
   };
 
   const openEditModal = (type: 'project' | 'package' | 'testimonial', item: any) => {
@@ -243,15 +249,36 @@ export const Dashboard: React.FC = () => {
     }
 
     setNewItemData(processedData);
+    setErrors({}); // Clear validation errors
     setModalType(type);
   };
 
   const closeModal = () => {
     setModalType(null);
     setNewItemData({});
+    setErrors({});
   };
 
   const handleSaveItem = async () => {
+    // Improved Inline Validation Logic
+    const newErrors: Record<string, string> = {};
+    
+    if (modalType === 'project') {
+       if (!newItemData.title?.trim()) newErrors.title = "Project Title is required.";
+       if (!newItemData.coverImage?.trim()) newErrors.coverImage = "Cover Image is required.";
+    } else if (modalType === 'package') {
+       if (!newItemData.name?.trim()) newErrors.name = "Package Name is required.";
+       if (!newItemData.priceFrom?.trim()) newErrors.priceFrom = "Starting Price is required.";
+    } else if (modalType === 'testimonial') {
+       if (!newItemData.name?.trim()) newErrors.name = "Client Name is required.";
+       if (!newItemData.quote?.trim()) newErrors.quote = "Review Quote is required.";
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
     // If ID exists, we are editing. If not, we create new.
     const isEditing = !!newItemData.id;
     const id = isEditing ? newItemData.id : Date.now().toString();
@@ -331,7 +358,10 @@ export const Dashboard: React.FC = () => {
   // Sidebar Item Component
   const SidebarItem = ({ id, icon: Icon, label }: { id: string, icon: any, label: string }) => (
     <button 
-      onClick={() => setActiveTab(id)}
+      onClick={() => {
+        setActiveTab(id);
+        setIsSidebarOpen(false); // Close sidebar on mobile when clicked
+      }}
       className={`w-full flex items-center px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 mb-1 ${
         activeTab === id 
           ? 'bg-primary text-white shadow-lg shadow-primary/30' 
@@ -343,421 +373,469 @@ export const Dashboard: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA] flex font-sans text-dark">
-      {/* Sidebar */}
-      <div className="w-72 bg-white border-r border-gray-100 z-10 flex-shrink-0 flex flex-col fixed h-full">
-        <div className="p-8">
-          <h1 className="font-serif text-2xl font-bold text-primary tracking-wide">Aster Admin</h1>
-          <p className="text-[10px] text-gray-400 mt-1 uppercase tracking-widest font-bold">Control Panel</p>
-        </div>
-        <nav className="flex-grow px-4 space-y-1 mt-2">
-          <SidebarItem id="inquiries" icon={Users} label="Inquiries" />
-          <SidebarItem id="content" icon={FileText} label="Landing Page" />
-          <SidebarItem id="testimonials" icon={MessageSquare} label="Testimonials" />
-          <SidebarItem id="portfolio" icon={ImageIcon} label="Portfolio" />
-          <SidebarItem id="packages" icon={Check} label="Packages" />
-          <SidebarItem id="settings" icon={Settings} label="Settings" />
-        </nav>
-        <div className="p-6 border-t border-gray-100">
-          <button onClick={handleLogout} className="flex items-center text-red-500 text-sm font-bold hover:text-red-700 transition-colors w-full px-4 py-2 hover:bg-red-50 rounded-lg">
-            <LogOut size={16} className="mr-2" /> Sign Out
-          </button>
-        </div>
-      </div>
+    <div className="min-h-screen bg-[#F8F9FA] flex font-sans text-dark overflow-hidden">
+      
+      {/* Mobile Overlay (Backdrop) */}
+      {isSidebarOpen && (
+        <div 
+          onClick={() => setIsSidebarOpen(false)} 
+          className="fixed inset-0 bg-black/50 z-30 md:hidden animate-fade-in"
+        />
+      )}
 
-      {/* Content Area */}
-      <div className="flex-grow ml-72 p-10 max-w-[1600px]">
-        {/* Header */}
-        <div className="flex justify-between items-end mb-10">
-          <div>
-            <h2 className="text-3xl font-serif font-bold text-dark capitalize mb-2">{activeTab.replace('-', ' ')}</h2>
-            <p className="text-gray-500 text-sm">Manage your platform content and data.</p>
-          </div>
-          <div className="flex items-center gap-3">
-             <span className="text-sm font-bold text-gray-500">{auth.currentUser?.email}</span>
-             <div className="bg-primary rounded-full h-10 w-10 flex items-center justify-center shadow-md text-white font-serif font-bold text-lg">A</div>
-          </div>
-        </div>
-
-        {/* --- INQUIRIES TAB --- */}
-        {activeTab === 'inquiries' && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="p-6 border-b border-gray-100 flex flex-col md:flex-row gap-4 justify-between items-center bg-gray-50/50">
-               <div className="relative w-full md:w-96">
-                 <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                 <StyledInput 
-                   placeholder="Search by name or email..." 
-                   value={searchQuery}
-                   onChange={(e) => setSearchQuery(e.target.value)}
-                   style={{ paddingLeft: '2.5rem' }}
-                 />
-               </div>
-               <div className="flex items-center gap-3">
-                 <Filter size={18} className="text-gray-400" />
-                 <select 
-                   className="border border-gray-300 rounded-lg text-sm px-4 py-2.5 outline-none focus:border-primary bg-white cursor-pointer hover:border-gray-400 transition-colors"
-                   value={filterStatus}
-                   onChange={(e) => setFilterStatus(e.target.value)}
-                 >
-                   <option value="all">All Status</option>
-                   <option value="new">New</option>
-                   <option value="contacted">Contacted</option>
-                   <option value="closed">Closed</option>
-                 </select>
-               </div>
+      {/* Sidebar - Responsive (Off-canvas on mobile, fixed on desktop) */}
+      <aside 
+        className={`fixed inset-y-0 left-0 z-40 w-72 bg-white border-r border-gray-100 transform transition-transform duration-300 ease-in-out md:translate-x-0 ${
+          isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="flex flex-col h-full">
+          <div className="p-8 flex justify-between items-start">
+            <div>
+              <h1 className="font-serif text-2xl font-bold text-primary tracking-wide">Aster Admin</h1>
+              <p className="text-[10px] text-gray-400 mt-1 uppercase tracking-widest font-bold">Control Panel</p>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm text-gray-600">
-                <thead className="bg-gray-50 text-gray-500 font-bold uppercase tracking-wider text-xs border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-4">Client</th>
-                    <th className="px-6 py-4">Event Details</th>
-                    <th className="px-6 py-4">Budget</th>
-                    <th className="px-6 py-4">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {sortedInquiries.map((inq, idx) => (
-                    <tr key={idx} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="font-bold text-dark text-base">{inq.name}</div>
-                        <div className="text-xs text-gray-400 mt-1">{inq.email}</div>
-                        <div className="text-xs text-gray-400">{inq.phone}</div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2 mb-1"><span className="font-bold text-gray-700">{inq.eventDate}</span></div>
-                        <div className="text-xs text-gray-500 max-w-xs truncate" title={inq.message}>{inq.message || 'No message'}</div>
-                      </td>
-                      <td className="px-6 py-4"><span className="bg-gray-100 px-2 py-1 rounded text-xs font-mono text-dark">{inq.budgetRange}</span></td>
-                      <td className="px-6 py-4">
-                        <select 
-                          className={`px-3 py-1.5 rounded-full text-xs font-bold border-none outline-none cursor-pointer shadow-sm transition-all ${
-                            inq.status === 'new' ? 'bg-green-100 text-green-700 hover:bg-green-200' : 
-                            inq.status === 'contacted' ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 
-                            'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-                          value={inq.status}
-                          onChange={(e) => handleStatusChange(inq.id, e.target.value as any)}
-                        >
-                          <option value="new">NEW</option>
-                          <option value="contacted">CONTACTED</option>
-                          <option value="closed">CLOSED</option>
-                        </select>
-                      </td>
+            {/* Close Button (Mobile Only) */}
+            <button 
+              onClick={() => setIsSidebarOpen(false)} 
+              className="md:hidden text-gray-400 hover:text-dark p-1"
+            >
+              <X size={24} />
+            </button>
+          </div>
+
+          <nav className="flex-grow px-4 space-y-1 mt-2 overflow-y-auto">
+            <SidebarItem id="inquiries" icon={Users} label="Inquiries" />
+            <SidebarItem id="content" icon={FileText} label="Landing Page" />
+            <SidebarItem id="testimonials" icon={MessageSquare} label="Testimonials" />
+            <SidebarItem id="portfolio" icon={ImageIcon} label="Portfolio" />
+            <SidebarItem id="packages" icon={Check} label="Packages" />
+            <SidebarItem id="settings" icon={Settings} label="Settings" />
+          </nav>
+          
+          <div className="p-6 border-t border-gray-100 flex-shrink-0">
+            <button onClick={handleLogout} className="flex items-center text-red-500 text-sm font-bold hover:text-red-700 transition-colors w-full px-4 py-2 hover:bg-red-50 rounded-lg">
+              <LogOut size={16} className="mr-2" /> Sign Out
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      {/* Content Area - Responsive Margins */}
+      <main className="flex-grow md:ml-72 w-full min-h-screen overflow-y-auto">
+        <div className="p-4 md:p-10 max-w-[1600px] mx-auto">
+          
+          {/* Mobile Header (Hamburger) */}
+          <div className="md:hidden flex items-center justify-between mb-6 pb-4 border-b border-gray-200">
+             <div className="flex items-center gap-2">
+               <div className="bg-primary rounded-lg p-2 text-white">
+                 <span className="font-serif font-bold text-lg">A</span>
+               </div>
+               <span className="font-serif font-bold text-lg text-dark">Aster Admin</span>
+             </div>
+             <button onClick={() => setIsSidebarOpen(true)} className="p-2 bg-white border border-gray-200 rounded-lg shadow-sm text-gray-600">
+               <Menu size={24} />
+             </button>
+          </div>
+
+          {/* Desktop Header & Title */}
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 md:mb-10 gap-4">
+            <div>
+              <h2 className="text-2xl md:text-3xl font-serif font-bold text-dark capitalize mb-2">{activeTab.replace('-', ' ')}</h2>
+              <p className="text-gray-500 text-sm">Manage your platform content and data.</p>
+            </div>
+            <div className="hidden md:flex items-center gap-3">
+               <span className="text-sm font-bold text-gray-500">{auth.currentUser?.email}</span>
+               <div className="bg-primary rounded-full h-10 w-10 flex items-center justify-center shadow-md text-white font-serif font-bold text-lg">A</div>
+            </div>
+          </div>
+
+          {/* --- INQUIRIES TAB --- */}
+          {activeTab === 'inquiries' && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="p-4 md:p-6 border-b border-gray-100 flex flex-col md:flex-row gap-4 justify-between items-center bg-gray-50/50">
+                 <div className="relative w-full md:w-96">
+                   <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                   <StyledInput 
+                     placeholder="Search..." 
+                     value={searchQuery}
+                     onChange={(e) => setSearchQuery(e.target.value)}
+                     style={{ paddingLeft: '2.5rem' }}
+                   />
+                 </div>
+                 <div className="flex w-full md:w-auto items-center gap-3">
+                   <Filter size={18} className="text-gray-400 hidden md:block" />
+                   <select 
+                     className="w-full md:w-auto border border-gray-300 rounded-lg text-sm px-4 py-2.5 outline-none focus:border-primary bg-white cursor-pointer hover:border-gray-400 transition-colors"
+                     value={filterStatus}
+                     onChange={(e) => setFilterStatus(e.target.value)}
+                   >
+                     <option value="all">All Status</option>
+                     <option value="new">New</option>
+                     <option value="contacted">Contacted</option>
+                     <option value="closed">Closed</option>
+                   </select>
+                 </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm text-gray-600 min-w-[800px]">
+                  <thead className="bg-gray-50 text-gray-500 font-bold uppercase tracking-wider text-xs border-b border-gray-200">
+                    <tr>
+                      <th className="px-6 py-4">Client</th>
+                      <th className="px-6 py-4">Event Details</th>
+                      <th className="px-6 py-4">Budget</th>
+                      <th className="px-6 py-4">Status</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* --- CONTENT TAB --- */}
-        {activeTab === 'content' && (
-          <div className="space-y-8 animate-fade-in pb-20">
-            <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-gray-200 shadow-sm sticky top-4 z-20">
-               <div>
-                  <h3 className="font-bold text-dark">Landing Page Content</h3>
-                  <p className="text-xs text-gray-500">Live updates for the home page.</p>
-               </div>
-               <Button onClick={saveContent} disabled={isSaving} className="shadow-lg" size="sm">
-                 <Save size={16} className="mr-2" />
-                 {isSaving ? 'Saving...' : 'Publish Changes'}
-               </Button>
-            </div>
-
-            {/* Hero Section Editor */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-              <h3 className="text-lg font-bold text-dark font-serif mb-6 border-b border-gray-100 pb-2">Hero Section</h3>
-              <div className="grid gap-6">
-                <InputGroup label="Headline">
-                  <StyledTextArea 
-                    rows={2} 
-                    value={siteContent.hero.headline}
-                    onChange={(e) => handleContentChange('hero', 'headline', e.target.value)}
-                  />
-                </InputGroup>
-                <InputGroup label="Subheadline">
-                  <StyledInput 
-                    value={siteContent.hero.subheadline}
-                    onChange={(e) => handleContentChange('hero', 'subheadline', e.target.value)}
-                  />
-                </InputGroup>
-                
-                <div className="grid md:grid-cols-2 gap-8">
-                   <div>
-                     <InputGroup label="CTA Button Text">
-                        <StyledInput 
-                          value={siteContent.hero.ctaText}
-                          onChange={(e) => handleContentChange('hero', 'ctaText', e.target.value)}
-                        />
-                     </InputGroup>
-                     <InputGroup label="Background Image">
-                        <div className="space-y-3">
-                          <div className="flex gap-2">
-                             <StyledInput 
-                               value={siteContent.hero.backgroundImage}
-                               onChange={(e) => handleContentChange('hero', 'backgroundImage', e.target.value)}
-                               placeholder="Enter Image URL (e.g. .jpg, .png)"
-                             />
-                             <a href={siteContent.hero.backgroundImage} target="_blank" rel="noreferrer" className="p-2.5 bg-gray-50 border border-gray-300 rounded-lg hover:bg-gray-100 text-gray-600 transition-colors">
-                                <ExternalLink size={20} />
-                             </a>
-                          </div>
-                          
-                          <p className="text-[10px] text-gray-400 -mt-2 italic">
-                            Pastikan link adalah <strong>Direct Link</strong> (berakhiran .jpg/.png) agar gambar muncul. Link Google Drive/Dropbox seringkali Private.
-                          </p>
-
-                          <div className="relative border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:bg-gray-50 transition-colors cursor-pointer group">
-                             <input 
-                               type="file" 
-                               accept="image/*" 
-                               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                               onChange={(e) => handleImageUpload(e, (base64) => handleContentChange('hero', 'backgroundImage', base64))}
-                             />
-                             <div className="flex flex-col items-center justify-center text-gray-400 group-hover:text-primary">
-                               <Upload size={24} className="mb-2" />
-                               <span className="text-xs font-bold uppercase">Click to Upload File (Max 500KB)</span>
-                             </div>
-                          </div>
-                        </div>
-                     </InputGroup>
-                   </div>
-                   
-                   <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Preview</label>
-                      <div className="relative w-full h-40 rounded-lg overflow-hidden border border-gray-300 bg-gray-100 shadow-inner group">
-                        <img 
-                          src={siteContent.hero.backgroundImage} 
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-                          referrerPolicy="no-referrer"
-                          onError={(e) => (e.currentTarget.src = 'https://via.placeholder.com/800x400?text=Invalid+Direct+Link')}
-                        />
-                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-center px-4">
-                           <span className="text-white text-xs font-serif opacity-80">{siteContent.hero.headline}</span>
-                        </div>
-                      </div>
-                   </div>
-                </div>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {sortedInquiries.map((inq, idx) => (
+                      <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="font-bold text-dark text-base">{inq.name}</div>
+                          <div className="text-xs text-gray-400 mt-1">{inq.email}</div>
+                          <div className="text-xs text-gray-400">{inq.phone}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2 mb-1"><span className="font-bold text-gray-700">{inq.eventDate}</span></div>
+                          <div className="text-xs text-gray-500 max-w-xs truncate" title={inq.message}>{inq.message || 'No message'}</div>
+                        </td>
+                        <td className="px-6 py-4"><span className="bg-gray-100 px-2 py-1 rounded text-xs font-mono text-dark">{inq.budgetRange}</span></td>
+                        <td className="px-6 py-4">
+                          <select 
+                            className={`px-3 py-1.5 rounded-full text-xs font-bold border-none outline-none cursor-pointer shadow-sm transition-all ${
+                              inq.status === 'new' ? 'bg-green-100 text-green-700 hover:bg-green-200' : 
+                              inq.status === 'contacted' ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 
+                              'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                            value={inq.status}
+                            onChange={(e) => handleStatusChange(inq.id, e.target.value as any)}
+                          >
+                            <option value="new">NEW</option>
+                            <option value="contacted">CONTACTED</option>
+                            <option value="closed">CLOSED</option>
+                          </select>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
+          )}
 
-            {/* Signature Style Editor */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-              <h3 className="text-lg font-bold text-dark font-serif mb-6 border-b border-gray-100 pb-2">Signature Styles</h3>
-              <div className="grid lg:grid-cols-3 gap-6">
-                {siteContent.signatureStyles.map((style, idx) => (
-                  <div key={style.id} className="p-6 border border-gray-200 rounded-xl bg-gray-50">
-                    <div className="flex justify-between items-center mb-4">
-                       <span className="text-xs font-bold bg-white border border-gray-200 px-2 py-1 rounded text-gray-500">#{idx + 1}</span>
-                       <span className="text-xs font-bold text-primary uppercase">{style.iconName}</span>
+          {/* --- CONTENT TAB --- */}
+          {activeTab === 'content' && (
+            <div className="space-y-6 md:space-y-8 animate-fade-in pb-20">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-4 rounded-xl border border-gray-200 shadow-sm sticky top-0 z-20 gap-3">
+                 <div>
+                    <h3 className="font-bold text-dark">Landing Page Content</h3>
+                    <p className="text-xs text-gray-500">Live updates for the home page.</p>
+                 </div>
+                 <Button onClick={saveContent} disabled={isSaving} className="shadow-lg w-full md:w-auto" size="sm">
+                   <Save size={16} className="mr-2" />
+                   {isSaving ? 'Saving...' : 'Publish'}
+                 </Button>
+              </div>
+
+              {/* Hero Section Editor */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-8">
+                <h3 className="text-lg font-bold text-dark font-serif mb-6 border-b border-gray-100 pb-2">Hero Section</h3>
+                <div className="grid gap-6">
+                  <InputGroup label="Headline">
+                    <StyledTextArea 
+                      rows={2} 
+                      value={siteContent.hero.headline}
+                      onChange={(e) => handleContentChange('hero', 'headline', e.target.value)}
+                    />
+                  </InputGroup>
+                  <InputGroup label="Subheadline">
+                    <StyledInput 
+                      value={siteContent.hero.subheadline}
+                      onChange={(e) => handleContentChange('hero', 'subheadline', e.target.value)}
+                    />
+                  </InputGroup>
+                  
+                  <div className="grid md:grid-cols-2 gap-8">
+                     <div>
+                       <InputGroup label="CTA Button Text">
+                          <StyledInput 
+                            value={siteContent.hero.ctaText}
+                            onChange={(e) => handleContentChange('hero', 'ctaText', e.target.value)}
+                          />
+                       </InputGroup>
+                       <InputGroup label="Background Image">
+                          <div className="space-y-3">
+                            <div className="flex gap-2">
+                               <StyledInput 
+                                 value={siteContent.hero.backgroundImage}
+                                 onChange={(e) => handleContentChange('hero', 'backgroundImage', e.target.value)}
+                                 placeholder="Enter Image URL (e.g. .jpg, .png)"
+                               />
+                               <a href={siteContent.hero.backgroundImage} target="_blank" rel="noreferrer" className="p-2.5 bg-gray-50 border border-gray-300 rounded-lg hover:bg-gray-100 text-gray-600 transition-colors">
+                                  <ExternalLink size={20} />
+                               </a>
+                            </div>
+                            
+                            <p className="text-[10px] text-gray-400 -mt-2 italic">
+                              Pastikan link adalah <strong>Direct Link</strong> (berakhiran .jpg/.png) agar gambar muncul. Link Google Drive/Dropbox seringkali Private.
+                            </p>
+
+                            <div className="relative border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:bg-gray-50 transition-colors cursor-pointer group">
+                               <input 
+                                 type="file" 
+                                 accept="image/*" 
+                                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                 onChange={(e) => handleImageUpload(e, (base64) => handleContentChange('hero', 'backgroundImage', base64))}
+                               />
+                               <div className="flex flex-col items-center justify-center text-gray-400 group-hover:text-primary">
+                                 <Upload size={24} className="mb-2" />
+                                 <span className="text-xs font-bold uppercase">Click to Upload File (Max 500KB)</span>
+                               </div>
+                            </div>
+                          </div>
+                       </InputGroup>
+                     </div>
+                     
+                     <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Preview</label>
+                        <div className="relative w-full h-40 rounded-lg overflow-hidden border border-gray-300 bg-gray-100 shadow-inner group">
+                          <img 
+                            src={siteContent.hero.backgroundImage} 
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                            referrerPolicy="no-referrer"
+                            onError={(e) => (e.currentTarget.src = 'https://via.placeholder.com/800x400?text=Invalid+Direct+Link')}
+                          />
+                          <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center text-center px-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                             <span className="text-white text-xs font-serif opacity-80 mb-2">{siteContent.hero.headline}</span>
+                             <button 
+                                onClick={() => handleContentChange('hero', 'backgroundImage', '')}
+                                className="bg-red-500 text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-md hover:bg-red-600 transition-colors flex items-center"
+                              >
+                                <Trash2 size={12} className="mr-1" /> Remove
+                              </button>
+                          </div>
+                        </div>
+                     </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Signature Style Editor */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-8">
+                <h3 className="text-lg font-bold text-dark font-serif mb-6 border-b border-gray-100 pb-2">Signature Styles</h3>
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {siteContent.signatureStyles.map((style, idx) => (
+                    <div key={style.id} className="p-6 border border-gray-200 rounded-xl bg-gray-50">
+                      <div className="flex justify-between items-center mb-4">
+                         <span className="text-xs font-bold bg-white border border-gray-200 px-2 py-1 rounded text-gray-500">#{idx + 1}</span>
+                         <span className="text-xs font-bold text-primary uppercase">{style.iconName}</span>
+                      </div>
+                      <InputGroup label="Title">
+                        <StyledInput 
+                          value={style.title}
+                          onChange={(e) => handleSignatureChange(idx, 'title', e.target.value)}
+                        />
+                      </InputGroup>
+                      <InputGroup label="Description">
+                        <StyledTextArea 
+                          rows={3}
+                          value={style.description}
+                          onChange={(e) => handleSignatureChange(idx, 'description', e.target.value)}
+                        />
+                      </InputGroup>
                     </div>
-                    <InputGroup label="Title">
+                  ))}
+                </div>
+              </div>
+
+              {/* CTA Section Editor */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-8">
+                <h3 className="text-lg font-bold text-dark font-serif mb-6 border-b border-gray-100 pb-2">Call to Action (Footer)</h3>
+                <div className="grid md:grid-cols-2 gap-8">
+                  <div className="space-y-4">
+                    <InputGroup label="Section Title">
                       <StyledInput 
-                        value={style.title}
-                        onChange={(e) => handleSignatureChange(idx, 'title', e.target.value)}
+                        value={siteContent.ctaSection.title}
+                        onChange={(e) => handleContentChange('ctaSection', 'title', e.target.value)}
                       />
                     </InputGroup>
-                    <InputGroup label="Description">
-                      <StyledTextArea 
-                        rows={3}
-                        value={style.description}
-                        onChange={(e) => handleSignatureChange(idx, 'description', e.target.value)}
+                    <InputGroup label="Button Text">
+                      <StyledInput 
+                        value={siteContent.ctaSection.buttonText}
+                        onChange={(e) => handleContentChange('ctaSection', 'buttonText', e.target.value)}
                       />
                     </InputGroup>
+                  </div>
+                  <InputGroup label="Description">
+                    <StyledTextArea 
+                      rows={5}
+                      value={siteContent.ctaSection.description}
+                      onChange={(e) => handleContentChange('ctaSection', 'description', e.target.value)}
+                    />
+                  </InputGroup>
+                </div>
+              </div>
+
+            </div>
+          )}
+
+          {/* --- TESTIMONIALS TAB --- */}
+          {activeTab === 'testimonials' && (
+            <div className="space-y-6 animate-fade-in">
+               <div className="flex justify-between items-center">
+                 <h3 className="text-lg font-bold text-dark font-serif">Client Reviews</h3>
+                 <Button size="sm" onClick={() => openModal('testimonial')}><Plus size={16} className="mr-2" /> Add Review</Button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {testimonials.map((testi) => (
+                  <div key={testi.id} className="bg-white border border-gray-200 rounded-xl p-6 relative hover:shadow-lg transition-all group">
+                    <div className="absolute top-4 right-4 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                      <button onClick={() => openEditModal('testimonial', testi)} className="p-2 bg-gray-50 text-blue-500 rounded-full hover:bg-blue-50 hover:text-blue-600 transition-colors shadow-sm border border-gray-100"><Edit2 size={14} /></button>
+                      <button onClick={() => handleDelete('testimonial', testi.id)} className="p-2 bg-red-50 text-red-500 rounded-full hover:bg-red-100 hover:text-red-600 transition-colors shadow-sm border border-red-50"><Trash2 size={14} /></button>
+                    </div>
+                    <div className="flex items-center mb-4">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold mr-3">
+                        {testi.name.charAt(0)}
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-sm text-dark">{testi.name}</h4>
+                        <p className="text-xs text-gray-500">{testi.role}</p>
+                      </div>
+                    </div>
+                    <p className="text-sm text-gray-600 italic mb-4 leading-relaxed">"{testi.quote}"</p>
+                    <div className="flex text-yellow-400">
+                      {[...Array(5)].map((_, i) => (
+                        <Star key={i} size={14} fill={i < testi.rating ? "currentColor" : "none"} className={i < testi.rating ? "" : "text-gray-200"} />
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
+          )}
 
-            {/* CTA Section Editor */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-              <h3 className="text-lg font-bold text-dark font-serif mb-6 border-b border-gray-100 pb-2">Call to Action (Footer)</h3>
-              <div className="grid md:grid-cols-2 gap-8">
-                <div className="space-y-4">
-                  <InputGroup label="Section Title">
-                    <StyledInput 
-                      value={siteContent.ctaSection.title}
-                      onChange={(e) => handleContentChange('ctaSection', 'title', e.target.value)}
-                    />
-                  </InputGroup>
-                  <InputGroup label="Button Text">
-                    <StyledInput 
-                      value={siteContent.ctaSection.buttonText}
-                      onChange={(e) => handleContentChange('ctaSection', 'buttonText', e.target.value)}
-                    />
-                  </InputGroup>
-                </div>
-                <InputGroup label="Description">
-                  <StyledTextArea 
-                    rows={5}
-                    value={siteContent.ctaSection.description}
-                    onChange={(e) => handleContentChange('ctaSection', 'description', e.target.value)}
-                  />
-                </InputGroup>
+          {/* --- PORTFOLIO TAB --- */}
+          {activeTab === 'portfolio' && (
+            <div className="space-y-6 animate-fade-in">
+               <div className="flex justify-between items-center">
+                 <h3 className="text-lg font-bold text-dark font-serif">Portfolio Projects</h3>
+                 <Button size="sm" onClick={() => openModal('project')}><Plus size={16} className="mr-2" /> Add Project</Button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {projects.map((project) => (
+                  <div key={project.id} className="bg-white border border-gray-200 rounded-xl overflow-hidden group hover:shadow-lg transition-all">
+                    <div className="relative h-48 bg-gray-100">
+                      <img src={project.coverImage} className="w-full h-full object-cover" alt={project.title} referrerPolicy="no-referrer" />
+                      <div className="absolute top-2 right-2 flex gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                         <button onClick={() => openEditModal('project', project)} className="p-2 bg-white rounded-full text-blue-500 hover:bg-blue-50 hover:text-blue-600 shadow-sm transition-colors"><Edit2 size={14} /></button>
+                         <button onClick={() => handleDelete('project', project.id)} className="p-2 bg-white rounded-full text-red-500 hover:bg-red-50 hover:text-red-600 shadow-sm transition-colors"><Trash2 size={14} /></button>
+                      </div>
+                    </div>
+                    <div className="p-5">
+                      <h4 className="font-serif font-bold text-dark text-lg">{project.title}</h4>
+                      <p className="text-xs text-primary font-bold mb-2 uppercase tracking-wide">{project.location} • {project.date}</p>
+                      <p className="text-sm text-gray-500 line-clamp-2 mb-3">{project.description}</p>
+                      <div className="flex flex-wrap gap-1">
+                        {project.themeTags.map(tag => <span key={tag} className="text-[10px] bg-gray-100 border border-gray-200 px-2 py-0.5 rounded text-gray-600">{tag}</span>)}
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
+          )}
 
-          </div>
-        )}
-
-        {/* --- TESTIMONIALS TAB --- */}
-        {activeTab === 'testimonials' && (
-          <div className="space-y-6 animate-fade-in">
-             <div className="flex justify-between items-center">
-               <h3 className="text-lg font-bold text-dark font-serif">Client Reviews</h3>
-               <Button size="sm" onClick={() => openModal('testimonial')}><Plus size={16} className="mr-2" /> Add Review</Button>
-            </div>
-            <div className="grid md:grid-cols-2 gap-6">
-              {testimonials.map((testi) => (
-                <div key={testi.id} className="bg-white border border-gray-200 rounded-xl p-6 relative hover:shadow-lg transition-all group">
-                  <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
-                    <button onClick={() => openEditModal('testimonial', testi)} className="p-2 bg-gray-50 text-blue-500 rounded-full hover:bg-blue-50 hover:text-blue-600 transition-colors shadow-sm border border-gray-100"><Edit2 size={14} /></button>
-                    <button onClick={() => handleDelete('testimonial', testi.id)} className="p-2 bg-red-50 text-red-500 rounded-full hover:bg-red-100 hover:text-red-600 transition-colors shadow-sm border border-red-50"><Trash2 size={14} /></button>
-                  </div>
-                  <div className="flex items-center mb-4">
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold mr-3">
-                      {testi.name.charAt(0)}
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-sm text-dark">{testi.name}</h4>
-                      <p className="text-xs text-gray-500">{testi.role}</p>
+          {/* --- PACKAGES TAB --- */}
+          {activeTab === 'packages' && (
+             <div className="space-y-6 animate-fade-in">
+              <div className="flex justify-between items-center">
+                 <h3 className="text-lg font-bold text-dark font-serif">Service Packages</h3>
+                 <Button size="sm" onClick={() => openModal('package')}><Plus size={16} className="mr-2" /> Add Package</Button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {packages.map((pkg) => (
+                  <div key={pkg.id} className="bg-white border border-gray-200 rounded-xl p-6 relative hover:shadow-lg transition-all hover:border-primary/30">
+                    {pkg.isFeatured && <span className="absolute top-4 right-4 text-[10px] font-bold bg-primary text-white px-2 py-1 rounded">FEATURED</span>}
+                    <h4 className="font-serif font-bold text-xl text-dark mb-1">{pkg.name}</h4>
+                    <p className="text-primary font-bold mb-4 text-2xl">{pkg.priceFrom}</p>
+                    <ul className="text-sm text-gray-500 space-y-2 mb-6 border-t border-gray-100 pt-4">
+                      {pkg.features.slice(0, 4).map((f, i) => <li key={i} className="flex items-start"><Check size={14} className="text-green-500 mr-2 mt-0.5" /> {f}</li>)}
+                      {pkg.features.length > 4 && <li className="text-xs text-gray-400 pl-6">...and {pkg.features.length - 4} more</li>}
+                    </ul>
+                    <div className="flex justify-end pt-2 gap-3">
+                      <button onClick={() => openEditModal('package', pkg)} className="text-blue-400 hover:text-blue-600 text-xs font-bold flex items-center"><Edit2 size={12} className="mr-1" /> Edit</button>
+                      <button onClick={() => handleDelete('package', pkg.id)} className="text-red-400 hover:text-red-600 text-xs font-bold flex items-center"><Trash2 size={12} className="mr-1" /> Remove</button>
                     </div>
                   </div>
-                  <p className="text-sm text-gray-600 italic mb-4 leading-relaxed">"{testi.quote}"</p>
-                  <div className="flex text-yellow-400">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} size={14} fill={i < testi.rating ? "currentColor" : "none"} className={i < testi.rating ? "" : "text-gray-200"} />
+                ))}
+              </div>
+             </div>
+          )}
+
+          {/* --- SETTINGS TAB --- */}
+          {activeTab === 'settings' && (
+             <div className="space-y-6 md:space-y-8 animate-fade-in pb-20">
+               <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-4 rounded-xl border border-gray-200 shadow-sm sticky top-0 z-20 gap-3">
+                 <div>
+                    <h3 className="font-bold text-dark">Global Settings</h3>
+                    <p className="text-xs text-gray-500">Configure brand, contact, and budget options.</p>
+                 </div>
+                 <Button onClick={saveSettings} disabled={isSaving} className="shadow-lg w-full md:w-auto" size="sm">
+                   <Save size={16} className="mr-2" />
+                   {isSaving ? 'Saving...' : 'Update Settings'}
+                 </Button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* General Settings */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-8">
+                  <h3 className="text-lg font-bold text-dark font-serif mb-6 border-b border-gray-100 pb-2">General Info</h3>
+                  <InputGroup label="Brand Name">
+                     <StyledInput value={settings.brandName} onChange={(e) => handleSettingsChange('brandName', e.target.value)} />
+                  </InputGroup>
+                  <InputGroup label="WhatsApp Number">
+                     <StyledInput value={settings.whatsappNumber} onChange={(e) => handleSettingsChange('whatsappNumber', e.target.value)} placeholder="628..." />
+                  </InputGroup>
+                  <InputGroup label="Admin Email">
+                     <StyledInput value={settings.adminEmail} onChange={(e) => handleSettingsChange('adminEmail', e.target.value)} />
+                  </InputGroup>
+                  <InputGroup label="Address">
+                     <StyledTextArea rows={2} value={settings.address} onChange={(e) => handleSettingsChange('address', e.target.value)} />
+                  </InputGroup>
+                </div>
+
+                {/* Budget Ranges */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-8">
+                  <h3 className="text-lg font-bold text-dark font-serif mb-6 border-b border-gray-100 pb-2 flex justify-between items-center">
+                    <span>Budget Ranges (IDR)</span>
+                    <button onClick={addBudgetRange} className="text-xs font-bold text-primary hover:text-primary-dark flex items-center"><Plus size={14} className="mr-1" /> Add Option</button>
+                  </h3>
+                  <div className="space-y-3">
+                    {settings.budgetRanges.map((range, idx) => (
+                      <div key={idx} className="flex gap-2 items-center">
+                        <div className="bg-gray-50 px-3 py-2 text-gray-400 border border-gray-200 rounded-l-lg border-r-0 hidden md:block">
+                          <DollarSign size={14} />
+                        </div>
+                        <input 
+                          className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg md:rounded-r-lg md:rounded-l-none text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                          value={range}
+                          onChange={(e) => handleBudgetRangeChange(idx, e.target.value)}
+                          placeholder="e.g. IDR 100 Juta - 250 Juta"
+                        />
+                        <button onClick={() => removeBudgetRange(idx)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     ))}
                   </div>
+                  <p className="text-xs text-gray-400 mt-4 italic">
+                    These options will appear in the dropdown menu on the Contact page.
+                  </p>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* --- PORTFOLIO TAB --- */}
-        {activeTab === 'portfolio' && (
-          <div className="space-y-6 animate-fade-in">
-             <div className="flex justify-between items-center">
-               <h3 className="text-lg font-bold text-dark font-serif">Portfolio Projects</h3>
-               <Button size="sm" onClick={() => openModal('project')}><Plus size={16} className="mr-2" /> Add Project</Button>
-            </div>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {projects.map((project) => (
-                <div key={project.id} className="bg-white border border-gray-200 rounded-xl overflow-hidden group hover:shadow-lg transition-all">
-                  <div className="relative h-48 bg-gray-100">
-                    <img src={project.coverImage} className="w-full h-full object-cover" alt={project.title} referrerPolicy="no-referrer" />
-                    <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                       <button onClick={() => openEditModal('project', project)} className="p-2 bg-white rounded-full text-blue-500 hover:bg-blue-50 hover:text-blue-600 shadow-sm transition-colors"><Edit2 size={14} /></button>
-                       <button onClick={() => handleDelete('project', project.id)} className="p-2 bg-white rounded-full text-red-500 hover:bg-red-50 hover:text-red-600 shadow-sm transition-colors"><Trash2 size={14} /></button>
-                    </div>
-                  </div>
-                  <div className="p-5">
-                    <h4 className="font-serif font-bold text-dark text-lg">{project.title}</h4>
-                    <p className="text-xs text-primary font-bold mb-2 uppercase tracking-wide">{project.location} • {project.date}</p>
-                    <p className="text-sm text-gray-500 line-clamp-2 mb-3">{project.description}</p>
-                    <div className="flex flex-wrap gap-1">
-                      {project.themeTags.map(tag => <span key={tag} className="text-[10px] bg-gray-100 border border-gray-200 px-2 py-0.5 rounded text-gray-600">{tag}</span>)}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* --- PACKAGES TAB --- */}
-        {activeTab === 'packages' && (
-           <div className="space-y-6 animate-fade-in">
-            <div className="flex justify-between items-center">
-               <h3 className="text-lg font-bold text-dark font-serif">Service Packages</h3>
-               <Button size="sm" onClick={() => openModal('package')}><Plus size={16} className="mr-2" /> Add Package</Button>
-            </div>
-            <div className="grid md:grid-cols-3 gap-6">
-              {packages.map((pkg) => (
-                <div key={pkg.id} className="bg-white border border-gray-200 rounded-xl p-6 relative hover:shadow-lg transition-all hover:border-primary/30">
-                  {pkg.isFeatured && <span className="absolute top-4 right-4 text-[10px] font-bold bg-primary text-white px-2 py-1 rounded">FEATURED</span>}
-                  <h4 className="font-serif font-bold text-xl text-dark mb-1">{pkg.name}</h4>
-                  <p className="text-primary font-bold mb-4 text-2xl">{pkg.priceFrom}</p>
-                  <ul className="text-sm text-gray-500 space-y-2 mb-6 border-t border-gray-100 pt-4">
-                    {pkg.features.slice(0, 4).map((f, i) => <li key={i} className="flex items-start"><Check size={14} className="text-green-500 mr-2 mt-0.5" /> {f}</li>)}
-                    {pkg.features.length > 4 && <li className="text-xs text-gray-400 pl-6">...and {pkg.features.length - 4} more</li>}
-                  </ul>
-                  <div className="flex justify-end pt-2 gap-3">
-                    <button onClick={() => openEditModal('package', pkg)} className="text-blue-400 hover:text-blue-600 text-xs font-bold flex items-center"><Edit2 size={12} className="mr-1" /> Edit</button>
-                    <button onClick={() => handleDelete('package', pkg.id)} className="text-red-400 hover:text-red-600 text-xs font-bold flex items-center"><Trash2 size={12} className="mr-1" /> Remove</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-           </div>
-        )}
-
-        {/* --- SETTINGS TAB --- */}
-        {activeTab === 'settings' && (
-           <div className="space-y-8 animate-fade-in pb-20">
-             <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-gray-200 shadow-sm sticky top-4 z-20">
-               <div>
-                  <h3 className="font-bold text-dark">Global Settings</h3>
-                  <p className="text-xs text-gray-500">Configure brand, contact, and budget options.</p>
-               </div>
-               <Button onClick={saveSettings} disabled={isSaving} className="shadow-lg" size="sm">
-                 <Save size={16} className="mr-2" />
-                 {isSaving ? 'Saving...' : 'Update Settings'}
-               </Button>
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-8">
-              {/* General Settings */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-                <h3 className="text-lg font-bold text-dark font-serif mb-6 border-b border-gray-100 pb-2">General Info</h3>
-                <InputGroup label="Brand Name">
-                   <StyledInput value={settings.brandName} onChange={(e) => handleSettingsChange('brandName', e.target.value)} />
-                </InputGroup>
-                <InputGroup label="WhatsApp Number">
-                   <StyledInput value={settings.whatsappNumber} onChange={(e) => handleSettingsChange('whatsappNumber', e.target.value)} placeholder="628..." />
-                </InputGroup>
-                <InputGroup label="Admin Email">
-                   <StyledInput value={settings.adminEmail} onChange={(e) => handleSettingsChange('adminEmail', e.target.value)} />
-                </InputGroup>
-                <InputGroup label="Address">
-                   <StyledTextArea rows={2} value={settings.address} onChange={(e) => handleSettingsChange('address', e.target.value)} />
-                </InputGroup>
               </div>
-
-              {/* Budget Ranges */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-                <h3 className="text-lg font-bold text-dark font-serif mb-6 border-b border-gray-100 pb-2 flex justify-between items-center">
-                  <span>Budget Ranges (IDR)</span>
-                  <button onClick={addBudgetRange} className="text-xs font-bold text-primary hover:text-primary-dark flex items-center"><Plus size={14} className="mr-1" /> Add Option</button>
-                </h3>
-                <div className="space-y-3">
-                  {settings.budgetRanges.map((range, idx) => (
-                    <div key={idx} className="flex gap-2 items-center">
-                      <div className="bg-gray-50 px-3 py-2 text-gray-400 border border-gray-200 rounded-l-lg border-r-0">
-                        <DollarSign size={14} />
-                      </div>
-                      <input 
-                        className="w-full px-3 py-2 bg-white border border-gray-300 rounded-r-lg text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
-                        value={range}
-                        onChange={(e) => handleBudgetRangeChange(idx, e.target.value)}
-                        placeholder="e.g. IDR 100 Juta - 250 Juta"
-                      />
-                      <button onClick={() => removeBudgetRange(idx)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                <p className="text-xs text-gray-400 mt-4 italic">
-                  These options will appear in the dropdown menu on the Contact page.
-                </p>
-              </div>
-            </div>
-           </div>
-        )}
-      </div>
+             </div>
+          )}
+        </div>
+      </main>
 
       {/* --- MODALS --- */}
       {/* Project Modal */}
@@ -765,11 +843,11 @@ export const Dashboard: React.FC = () => {
         isOpen={modalType === 'project'} 
         onClose={closeModal} 
         title={newItemData.id ? "Edit Project" : "Add New Project"}
-        footer={<><Button variant="outline" onClick={closeModal} size="sm">Cancel</Button><Button onClick={handleSaveItem} size="sm">Save Project</Button></>}
+        footer={<><Button variant="outline" onClick={closeModal} size="sm" fullWidth>Cancel</Button><Button onClick={handleSaveItem} size="sm" fullWidth>Save Project</Button></>}
       >
         <div className="space-y-4">
-          <InputGroup label="Project Title">
-            <StyledInput value={newItemData.title || ''} onChange={e => setNewItemData({...newItemData, title: e.target.value})} placeholder="e.g. Sarah & John Wedding" />
+          <InputGroup label="Project Title" required error={errors.title}>
+            <StyledInput hasError={!!errors.title} value={newItemData.title || ''} onChange={e => setNewItemData({...newItemData, title: e.target.value})} placeholder="e.g. Sarah & John Wedding" />
           </InputGroup>
           <div className="grid grid-cols-2 gap-4">
              <InputGroup label="Location">
@@ -779,9 +857,9 @@ export const Dashboard: React.FC = () => {
                <StyledInput value={newItemData.date || ''} onChange={e => setNewItemData({...newItemData, date: e.target.value})} placeholder="e.g. 2024" />
              </InputGroup>
           </div>
-          <InputGroup label="Cover Image">
+          <InputGroup label="Cover Image" required error={errors.coverImage}>
              <div className="space-y-2">
-                <StyledInput value={newItemData.coverImage || ''} onChange={e => setNewItemData({...newItemData, coverImage: e.target.value})} placeholder="https://..." />
+                <StyledInput hasError={!!errors.coverImage} value={newItemData.coverImage || ''} onChange={e => setNewItemData({...newItemData, coverImage: e.target.value})} placeholder="https://..." />
                 <p className="text-[10px] text-gray-400 -mt-2 italic">
                   Gunakan Direct Link (.jpg/.png) atau Upload gambar di bawah.
                 </p>
@@ -797,6 +875,27 @@ export const Dashboard: React.FC = () => {
                        <span className="text-xs font-bold uppercase flex items-center"><Upload size={14} className="mr-1" /> {newItemData.coverImage ? "Change Image" : "Upload Image"}</span>
                      </div>
                 </div>
+
+                {/* IMAGE PREVIEW */}
+                {newItemData.coverImage && (
+                  <div className="relative w-full h-48 bg-gray-100 rounded-lg overflow-hidden border border-gray-200 mt-2 group shadow-sm">
+                    <img 
+                      src={newItemData.coverImage} 
+                      alt="Preview" 
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                      onError={(e) => (e.currentTarget.src = 'https://via.placeholder.com/800x400?text=Invalid+Image+Link')}
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <button 
+                          onClick={() => setNewItemData({...newItemData, coverImage: ''})}
+                          className="bg-red-500 text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-md hover:bg-red-600 transition-colors flex items-center"
+                        >
+                          <Trash2 size={12} className="mr-1" /> Remove Image
+                        </button>
+                    </div>
+                  </div>
+                )}
              </div>
           </InputGroup>
           <InputGroup label="Tags (comma separated)">
@@ -813,14 +912,14 @@ export const Dashboard: React.FC = () => {
         isOpen={modalType === 'package'} 
         onClose={closeModal} 
         title={newItemData.id ? "Edit Service Package" : "Add Service Package"}
-        footer={<><Button variant="outline" onClick={closeModal} size="sm">Cancel</Button><Button onClick={handleSaveItem} size="sm">Save Package</Button></>}
+        footer={<><Button variant="outline" onClick={closeModal} size="sm" fullWidth>Cancel</Button><Button onClick={handleSaveItem} size="sm" fullWidth>Save Package</Button></>}
       >
          <div className="space-y-4">
-          <InputGroup label="Package Name">
-            <StyledInput value={newItemData.name || ''} onChange={e => setNewItemData({...newItemData, name: e.target.value})} placeholder="e.g. Full Planning" />
+          <InputGroup label="Package Name" required error={errors.name}>
+            <StyledInput hasError={!!errors.name} value={newItemData.name || ''} onChange={e => setNewItemData({...newItemData, name: e.target.value})} placeholder="e.g. Full Planning" />
           </InputGroup>
-          <InputGroup label="Starting Price">
-            <StyledInput value={newItemData.priceFrom || ''} onChange={e => setNewItemData({...newItemData, priceFrom: e.target.value})} placeholder="e.g. IDR 50.000.000" />
+          <InputGroup label="Starting Price" required error={errors.priceFrom}>
+            <StyledInput hasError={!!errors.priceFrom} value={newItemData.priceFrom || ''} onChange={e => setNewItemData({...newItemData, priceFrom: e.target.value})} placeholder="e.g. IDR 50.000.000" />
           </InputGroup>
           <InputGroup label="Features (One per line)">
             <StyledTextArea rows={6} value={newItemData.features || ''} onChange={e => setNewItemData({...newItemData, features: e.target.value})} placeholder="Venue Scouting&#10;Budget Management&#10;Day-of Coordinator" />
@@ -837,17 +936,17 @@ export const Dashboard: React.FC = () => {
         isOpen={modalType === 'testimonial'} 
         onClose={closeModal} 
         title={newItemData.id ? "Edit Testimonial" : "Add Testimonial"}
-        footer={<><Button variant="outline" onClick={closeModal} size="sm">Cancel</Button><Button onClick={handleSaveItem} size="sm">Save Review</Button></>}
+        footer={<><Button variant="outline" onClick={closeModal} size="sm" fullWidth>Cancel</Button><Button onClick={handleSaveItem} size="sm" fullWidth>Save Review</Button></>}
       >
          <div className="space-y-4">
-          <InputGroup label="Client Name">
-            <StyledInput value={newItemData.name || ''} onChange={e => setNewItemData({...newItemData, name: e.target.value})} />
+          <InputGroup label="Client Name" required error={errors.name}>
+            <StyledInput hasError={!!errors.name} value={newItemData.name || ''} onChange={e => setNewItemData({...newItemData, name: e.target.value})} />
           </InputGroup>
           <InputGroup label="Role">
             <StyledInput value={newItemData.role || ''} onChange={e => setNewItemData({...newItemData, role: e.target.value})} placeholder="Bride / Groom / Parent" />
           </InputGroup>
-          <InputGroup label="Review Quote">
-            <StyledTextArea rows={4} value={newItemData.quote || ''} onChange={e => setNewItemData({...newItemData, quote: e.target.value})} />
+          <InputGroup label="Review Quote" required error={errors.quote}>
+            <StyledTextArea hasError={!!errors.quote} rows={4} value={newItemData.quote || ''} onChange={e => setNewItemData({...newItemData, quote: e.target.value})} />
           </InputGroup>
         </div>
       </Modal>
