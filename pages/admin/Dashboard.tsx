@@ -206,7 +206,7 @@ export const Dashboard: React.FC = () => {
     setIsSaving(false);
   };
 
-  // --- Item Management Handlers ---
+  // --- Item Management Handlers (Add / Edit / Delete) ---
   const handleDelete = async (type: 'project' | 'package' | 'testimonial', id: string) => {
     if (!confirm('Are you sure you want to remove this item?')) return;
     
@@ -228,7 +228,22 @@ export const Dashboard: React.FC = () => {
 
   const openModal = (type: 'project' | 'package' | 'testimonial') => {
     setModalType(type);
-    setNewItemData({});
+    setNewItemData({}); // Clear for new item
+  };
+
+  const openEditModal = (type: 'project' | 'package' | 'testimonial', item: any) => {
+    // Pre-process data for form (e.g. arrays to strings)
+    let processedData = { ...item };
+    
+    if (type === 'project' && Array.isArray(item.themeTags)) {
+      processedData.themeTags = item.themeTags.join(', ');
+    }
+    if (type === 'package' && Array.isArray(item.features)) {
+      processedData.features = item.features.join('\n');
+    }
+
+    setNewItemData(processedData);
+    setModalType(type);
   };
 
   const closeModal = () => {
@@ -237,7 +252,9 @@ export const Dashboard: React.FC = () => {
   };
 
   const handleSaveItem = async () => {
-    const id = Date.now().toString();
+    // If ID exists, we are editing. If not, we create new.
+    const isEditing = !!newItemData.id;
+    const id = isEditing ? newItemData.id : Date.now().toString();
     
     try {
       if (modalType === 'project') {
@@ -247,40 +264,45 @@ export const Dashboard: React.FC = () => {
           slug: (newItemData.title || 'new').toLowerCase().replace(/\s+/g, '-'),
           coverImage: newItemData.coverImage || 'https://picsum.photos/800/600',
           location: newItemData.location || 'Jakarta',
-          date: newItemData.date || '2024',
-          themeTags: newItemData.themeTags ? newItemData.themeTags.split(',') : ['Wedding'],
+          date: newItemData.date || new Date().getFullYear().toString(),
+          themeTags: typeof newItemData.themeTags === 'string' 
+            ? newItemData.themeTags.split(',').map((t: string) => t.trim()).filter(Boolean) 
+            : newItemData.themeTags || ['Wedding'],
           description: newItemData.description || '',
-          vendors: []
+          vendors: newItemData.vendors || []
         };
         await DataService.saveProject(newItem);
-        setProjects(prev => [newItem, ...prev]);
+        setProjects(prev => isEditing ? prev.map(p => p.id === id ? newItem : p) : [newItem, ...prev]);
 
       } else if (modalType === 'package') {
         const newItem: ServicePackage = {
           id,
           name: newItemData.name || 'New Package',
           priceFrom: newItemData.priceFrom || 'IDR 0',
-          features: newItemData.features ? newItemData.features.split('\n') : ['Feature 1'],
-          isFeatured: false,
-          order: packages.length + 1
+          features: typeof newItemData.features === 'string'
+            ? newItemData.features.split('\n').filter(Boolean)
+            : newItemData.features || ['Feature 1'],
+          isFeatured: newItemData.isFeatured || false,
+          order: newItemData.order || packages.length + 1
         };
         await DataService.savePackage(newItem);
-        setPackages(prev => [...prev, newItem]);
+        setPackages(prev => isEditing ? prev.map(p => p.id === id ? newItem : p) : [...prev, newItem]);
 
       } else if (modalType === 'testimonial') {
         const newItem: Testimonial = {
           id,
           name: newItemData.name || 'Client Name',
           role: newItemData.role || 'Couple',
-          rating: 5,
+          rating: newItemData.rating || 5,
           quote: newItemData.quote || '',
           eventType: newItemData.eventType || 'Wedding'
         };
         await DataService.saveTestimonial(newItem);
-        setTestimonials(prev => [...prev, newItem]);
+        setTestimonials(prev => isEditing ? prev.map(t => t.id === id ? newItem : t) : [...prev, newItem]);
       }
       closeModal();
     } catch (e) {
+      console.error(e);
       alert("Save failed. Insufficient permissions.");
     }
   };
@@ -590,7 +612,8 @@ export const Dashboard: React.FC = () => {
               {testimonials.map((testi) => (
                 <div key={testi.id} className="bg-white border border-gray-200 rounded-xl p-6 relative hover:shadow-lg transition-all group">
                   <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
-                    <button onClick={() => handleDelete('testimonial', testi.id)} className="p-2 bg-red-50 text-red-500 rounded-full hover:bg-red-100"><Trash2 size={14} /></button>
+                    <button onClick={() => openEditModal('testimonial', testi)} className="p-2 bg-gray-50 text-blue-500 rounded-full hover:bg-blue-50 hover:text-blue-600 transition-colors shadow-sm border border-gray-100"><Edit2 size={14} /></button>
+                    <button onClick={() => handleDelete('testimonial', testi.id)} className="p-2 bg-red-50 text-red-500 rounded-full hover:bg-red-100 hover:text-red-600 transition-colors shadow-sm border border-red-50"><Trash2 size={14} /></button>
                   </div>
                   <div className="flex items-center mb-4">
                     <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold mr-3">
@@ -626,7 +649,8 @@ export const Dashboard: React.FC = () => {
                   <div className="relative h-48 bg-gray-100">
                     <img src={project.coverImage} className="w-full h-full object-cover" alt={project.title} referrerPolicy="no-referrer" />
                     <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                       <button onClick={() => handleDelete('project', project.id)} className="p-2 bg-white rounded-full text-red-500 hover:bg-red-50 shadow-sm"><Trash2 size={14} /></button>
+                       <button onClick={() => openEditModal('project', project)} className="p-2 bg-white rounded-full text-blue-500 hover:bg-blue-50 hover:text-blue-600 shadow-sm transition-colors"><Edit2 size={14} /></button>
+                       <button onClick={() => handleDelete('project', project.id)} className="p-2 bg-white rounded-full text-red-500 hover:bg-red-50 hover:text-red-600 shadow-sm transition-colors"><Trash2 size={14} /></button>
                     </div>
                   </div>
                   <div className="p-5">
@@ -660,7 +684,8 @@ export const Dashboard: React.FC = () => {
                     {pkg.features.slice(0, 4).map((f, i) => <li key={i} className="flex items-start"><Check size={14} className="text-green-500 mr-2 mt-0.5" /> {f}</li>)}
                     {pkg.features.length > 4 && <li className="text-xs text-gray-400 pl-6">...and {pkg.features.length - 4} more</li>}
                   </ul>
-                  <div className="flex justify-end pt-2">
+                  <div className="flex justify-end pt-2 gap-3">
+                    <button onClick={() => openEditModal('package', pkg)} className="text-blue-400 hover:text-blue-600 text-xs font-bold flex items-center"><Edit2 size={12} className="mr-1" /> Edit</button>
                     <button onClick={() => handleDelete('package', pkg.id)} className="text-red-400 hover:text-red-600 text-xs font-bold flex items-center"><Trash2 size={12} className="mr-1" /> Remove</button>
                   </div>
                 </div>
@@ -739,7 +764,7 @@ export const Dashboard: React.FC = () => {
       <Modal 
         isOpen={modalType === 'project'} 
         onClose={closeModal} 
-        title="Add New Project"
+        title={newItemData.id ? "Edit Project" : "Add New Project"}
         footer={<><Button variant="outline" onClick={closeModal} size="sm">Cancel</Button><Button onClick={handleSaveItem} size="sm">Save Project</Button></>}
       >
         <div className="space-y-4">
@@ -769,7 +794,7 @@ export const Dashboard: React.FC = () => {
                        onChange={(e) => handleImageUpload(e, (base64) => setNewItemData({...newItemData, coverImage: base64}))}
                      />
                      <div className="flex flex-col items-center justify-center text-gray-400 group-hover:text-primary">
-                       <span className="text-xs font-bold uppercase flex items-center"><Upload size={14} className="mr-1" /> Upload Image</span>
+                       <span className="text-xs font-bold uppercase flex items-center"><Upload size={14} className="mr-1" /> {newItemData.coverImage ? "Change Image" : "Upload Image"}</span>
                      </div>
                 </div>
              </div>
@@ -787,7 +812,7 @@ export const Dashboard: React.FC = () => {
       <Modal 
         isOpen={modalType === 'package'} 
         onClose={closeModal} 
-        title="Add Service Package"
+        title={newItemData.id ? "Edit Service Package" : "Add Service Package"}
         footer={<><Button variant="outline" onClick={closeModal} size="sm">Cancel</Button><Button onClick={handleSaveItem} size="sm">Save Package</Button></>}
       >
          <div className="space-y-4">
@@ -800,6 +825,10 @@ export const Dashboard: React.FC = () => {
           <InputGroup label="Features (One per line)">
             <StyledTextArea rows={6} value={newItemData.features || ''} onChange={e => setNewItemData({...newItemData, features: e.target.value})} placeholder="Venue Scouting&#10;Budget Management&#10;Day-of Coordinator" />
           </InputGroup>
+           <div className="flex items-center gap-2">
+             <input type="checkbox" id="featured" checked={newItemData.isFeatured || false} onChange={e => setNewItemData({...newItemData, isFeatured: e.target.checked})} className="rounded text-primary focus:ring-primary" />
+             <label htmlFor="featured" className="text-sm font-semibold text-gray-700">Set as Featured Package</label>
+           </div>
         </div>
       </Modal>
 
@@ -807,7 +836,7 @@ export const Dashboard: React.FC = () => {
       <Modal 
         isOpen={modalType === 'testimonial'} 
         onClose={closeModal} 
-        title="Add Testimonial"
+        title={newItemData.id ? "Edit Testimonial" : "Add Testimonial"}
         footer={<><Button variant="outline" onClick={closeModal} size="sm">Cancel</Button><Button onClick={handleSaveItem} size="sm">Save Review</Button></>}
       >
          <div className="space-y-4">
