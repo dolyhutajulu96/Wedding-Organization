@@ -12,6 +12,13 @@ export const Packages: React.FC = () => {
     DataService.getPackages().then(setPackages);
   }, []);
 
+  // Helper to determine who the package is for based on order/name (simple logic for now)
+  const getBestFor = (pkg: ServicePackage) => {
+     if (pkg.name.toLowerCase().includes('full')) return 'Busy Couples / Perfectionists';
+     if (pkg.name.toLowerCase().includes('day')) return 'DIY Planners / Budget Conscious';
+     return 'Flexible Planners';
+  };
+
   return (
     <div className="pt-24 pb-24 animate-fade-in bg-secondary/30">
       <div className="container mx-auto px-6">
@@ -22,28 +29,36 @@ export const Packages: React.FC = () => {
           </p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+        <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto items-start">
           {packages.map((pkg) => (
             <div 
               key={pkg.id} 
-              className={`bg-white rounded-xl p-8 shadow-sm hover:shadow-xl transition-shadow duration-300 flex flex-col relative ${pkg.isFeatured ? 'border-2 border-primary transform md:-translate-y-4' : 'border border-gray-100'}`}
+              className={`bg-white rounded-xl p-8 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col relative ${pkg.isFeatured ? 'border-2 border-primary transform md:-translate-y-4 shadow-lg' : 'border border-gray-100'}`}
             >
               {pkg.isFeatured && (
-                <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-primary text-white text-xs font-bold px-4 py-1 rounded-full uppercase tracking-widest">
+                <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-primary text-white text-xs font-bold px-4 py-1.5 rounded-full uppercase tracking-widest shadow-md">
                   Most Popular
                 </div>
               )}
               
-              <h3 className="font-serif text-2xl text-dark mb-2">{pkg.name}</h3>
-              <div className="text-gray-400 text-sm mb-6">Start from</div>
-              <div className="text-3xl font-bold text-primary mb-8">{pkg.priceFrom}</div>
+              <div className="mb-6">
+                 <div className="inline-block bg-secondary text-gray-500 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wide mb-3">
+                    Perfect For: {getBestFor(pkg)}
+                 </div>
+                 <h3 className="font-serif text-2xl text-dark">{pkg.name}</h3>
+              </div>
+
+              <div className="mb-8 border-b border-gray-100 pb-8">
+                <div className="text-gray-400 text-xs uppercase tracking-widest mb-1">Start from</div>
+                <div className="text-3xl font-bold text-primary">{pkg.priceFrom}</div>
+              </div>
               
               <div className="flex-grow">
                 <ul className="space-y-4 mb-8">
                   {pkg.features.map((feature, idx) => (
-                    <li key={idx} className="flex items-start text-gray-600 text-sm">
-                      <Check size={16} className="text-primary mr-3 mt-1 flex-shrink-0" />
-                      <span>{feature}</span>
+                    <li key={idx} className="flex items-start text-gray-600 text-sm group">
+                      <Check size={16} className="text-primary mr-3 mt-1 flex-shrink-0 group-hover:scale-110 transition-transform" />
+                      <span className="leading-relaxed">{feature}</span>
                     </li>
                   ))}
                 </ul>
@@ -53,6 +68,7 @@ export const Packages: React.FC = () => {
                 <Button 
                   variant={pkg.isFeatured ? 'primary' : 'outline'} 
                   fullWidth
+                  className={pkg.isFeatured ? 'shadow-lg' : ''}
                 >
                   Request Quote
                 </Button>
@@ -63,7 +79,7 @@ export const Packages: React.FC = () => {
 
         <div className="mt-16 text-center">
           <p className="text-gray-500 text-sm mb-4">
-            *Harga dapat berubah tergantung lokasi, jumlah tamu, dan kompleksitas acara.
+            *Harga dapat berubah tergantung lokasi, jumlah tamu, dan kompleksitas acara. Hubungi kami untuk penawaran custom.
           </p>
         </div>
       </div>

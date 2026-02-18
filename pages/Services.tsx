@@ -1,15 +1,36 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
+import { DataService } from '../services/data';
+import { SiteContent } from '../types';
+import { DEFAULT_SITE_CONTENT } from '../constants';
 
 export const Services: React.FC = () => {
+  const [content, setContent] = useState<SiteContent>(DEFAULT_SITE_CONTENT);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    DataService.getSiteContent().then(data => {
+      setContent(data);
+      setLoading(false);
+    });
+  }, []);
+
+  if (loading) {
+     return <div className="h-screen flex items-center justify-center bg-secondary"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>;
+  }
+
+  // Fallback if data is missing despite DataService merge
+  const servicesPage = content.servicesPage || DEFAULT_SITE_CONTENT.servicesPage;
+
   return (
     <div className="pt-24 pb-12 animate-fade-in">
       <div className="container mx-auto px-6">
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <h1 className="font-serif text-4xl md:text-5xl text-dark mb-6">Our Services</h1>
+          <span className="text-primary font-bold tracking-widest uppercase text-xs mb-3 block">{servicesPage.header.subtitle}</span>
+          <h1 className="font-serif text-4xl md:text-5xl text-dark mb-6">{servicesPage.header.title}</h1>
           <p className="text-gray-600 text-lg">
-            Kami menawarkan rangkaian layanan yang disesuaikan dengan kebutuhan Anda, mulai dari perencanaan awal hingga koordinasi hari-H.
+            {servicesPage.header.description}
           </p>
         </div>
 
@@ -18,16 +39,16 @@ export const Services: React.FC = () => {
           <div className="grid md:grid-cols-2 gap-12 items-center">
             <div className="order-2 md:order-1">
               <img 
-                src="https://images.unsplash.com/photo-1511795409834-ef04bbd61622?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80" 
-                alt="Full Planning" 
+                src={servicesPage.section1.image} 
+                alt={servicesPage.section1.title} 
                 className="rounded-lg shadow-xl w-full object-cover h-[500px]"
               />
             </div>
             <div className="order-1 md:order-2">
-              <h3 className="font-serif text-3xl mb-4 text-dark">Full Wedding Planning</h3>
-              <p className="text-primary font-bold mb-6 tracking-widest uppercase text-sm">Best for busy couples</p>
-              <p className="text-gray-600 mb-6 leading-relaxed">
-                Layanan komprehensif dimana kami mendampingi Anda dari nol. Mulai dari pencarian venue, seleksi vendor, konsep desain, manajemen anggaran, hingga eksekusi hari H. Kami mengurus semua detail agar Anda bisa fokus menikmati prosesnya.
+              <h3 className="font-serif text-3xl mb-4 text-dark">{servicesPage.section1.title}</h3>
+              <p className="text-primary font-bold mb-6 tracking-widest uppercase text-sm">{servicesPage.section1.subtitle}</p>
+              <p className="text-gray-600 mb-6 leading-relaxed whitespace-pre-line">
+                {servicesPage.section1.description}
               </p>
               <ul className="space-y-3 mb-8 text-gray-600">
                 <li className="flex items-center"><span className="w-2 h-2 bg-primary rounded-full mr-3"></span>Budget Management</li>
@@ -44,10 +65,10 @@ export const Services: React.FC = () => {
           {/* Service 2 */}
           <div className="grid md:grid-cols-2 gap-12 items-center">
             <div>
-              <h3 className="font-serif text-3xl mb-4 text-dark">Wedding Day Coordination</h3>
-              <p className="text-primary font-bold mb-6 tracking-widest uppercase text-sm">For the DIY planner</p>
-              <p className="text-gray-600 mb-6 leading-relaxed">
-                Anda sudah merencanakan semuanya? Biarkan kami yang mengambil alih di bulan terakhir. Kami memastikan semua rencana Anda berjalan mulus di hari H, menjadi point of contact untuk semua vendor, dan menangani logistik acara.
+              <h3 className="font-serif text-3xl mb-4 text-dark">{servicesPage.section2.title}</h3>
+              <p className="text-primary font-bold mb-6 tracking-widest uppercase text-sm">{servicesPage.section2.subtitle}</p>
+              <p className="text-gray-600 mb-6 leading-relaxed whitespace-pre-line">
+                {servicesPage.section2.description}
               </p>
               <ul className="space-y-3 mb-8 text-gray-600">
                 <li className="flex items-center"><span className="w-2 h-2 bg-primary rounded-full mr-3"></span>Handover 1 Month Prior</li>
@@ -61,8 +82,8 @@ export const Services: React.FC = () => {
             </div>
              <div>
               <img 
-                src="https://images.unsplash.com/photo-1515934751635-c81c6bc9a2d8?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80" 
-                alt="Day of Coordination" 
+                src={servicesPage.section2.image} 
+                alt={servicesPage.section2.title} 
                 className="rounded-lg shadow-xl w-full object-cover h-[500px]"
               />
             </div>

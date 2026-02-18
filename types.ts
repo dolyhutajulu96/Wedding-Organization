@@ -17,6 +17,7 @@ export interface Project {
   themeTags: string[];
   description: string;
   vendors: string[];
+  isFeatured?: boolean;
 }
 
 export interface Testimonial {
@@ -65,6 +66,24 @@ export interface SignatureStyleConfig {
   iconName: 'Heart' | 'Clock' | 'Star';
 }
 
+export interface PageSectionConfig {
+  title: string;
+  description: string;
+  image?: string;
+  subtitle?: string;
+}
+
+export interface ProcessStep {
+  number: string;
+  title: string;
+  description: string;
+}
+
+export interface FAQItem {
+  question: string;
+  answer: string;
+}
+
 export interface SiteContent {
   hero: HeroSectionConfig;
   signatureStyles: SignatureStyleConfig[];
@@ -72,6 +91,19 @@ export interface SiteContent {
     title: string;
     description: string;
     buttonText: string;
+  };
+  // New: Process & FAQ for Home
+  process: ProcessStep[];
+  faq: FAQItem[];
+  // New Pages
+  servicesPage: {
+    header: PageSectionConfig;
+    section1: PageSectionConfig;
+    section2: PageSectionConfig;
+  };
+  aboutPage: {
+    header: PageSectionConfig;
+    story: PageSectionConfig;
   };
 }
 

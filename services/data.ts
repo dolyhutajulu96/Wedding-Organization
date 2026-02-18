@@ -7,7 +7,7 @@ import {
   setDoc, 
   addDoc, 
   updateDoc, 
-  deleteDoc,
+  deleteDoc, 
   query,
   orderBy 
 } from 'firebase/firestore';
@@ -117,11 +117,18 @@ export const DataService = {
       const docSnap = await getDoc(docRef);
       
       if (docSnap.exists()) {
-        return docSnap.data() as SiteContent;
+        const data = docSnap.data();
+        // Merge with DEFAULT_SITE_CONTENT to ensure new fields (like aboutPage, servicesPage, process, faq) 
+        // exist even if the document in Firestore is older/partial.
+        return {
+          ...DEFAULT_SITE_CONTENT,
+          ...data,
+          servicesPage: data.servicesPage ? { ...DEFAULT_SITE_CONTENT.servicesPage, ...data.servicesPage } : DEFAULT_SITE_CONTENT.servicesPage,
+          aboutPage: data.aboutPage ? { ...DEFAULT_SITE_CONTENT.aboutPage, ...data.aboutPage } : DEFAULT_SITE_CONTENT.aboutPage,
+          process: data.process || DEFAULT_SITE_CONTENT.process,
+          faq: data.faq || DEFAULT_SITE_CONTENT.faq,
+        } as SiteContent;
       } else {
-        // NOTE: Unauthenticated users cannot write to DB. 
-        // We return default content without trying to save it.
-        // The Admin Dashboard will handle saving/seeding when the admin logs in.
         return DEFAULT_SITE_CONTENT;
       }
     } catch (e) {

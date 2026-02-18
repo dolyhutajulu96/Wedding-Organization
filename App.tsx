@@ -6,6 +6,7 @@ import { Services } from './pages/Services';
 import { Packages } from './pages/Packages';
 import { Portfolio } from './pages/Portfolio';
 import { Contact } from './pages/Contact';
+import { About } from './pages/About';
 import { Login } from './pages/admin/Login';
 import { Dashboard } from './pages/admin/Dashboard';
 
@@ -19,7 +20,7 @@ const App: React.FC = () => {
         <Route path="/packages" element={<Layout><Packages /></Layout>} />
         <Route path="/portfolio" element={<Layout><Portfolio /></Layout>} />
         <Route path="/contact" element={<Layout><Contact /></Layout>} />
-        <Route path="/about" element={<Layout><div className="pt-32 text-center">About Page Content</div></Layout>} />
+        <Route path="/about" element={<Layout><About /></Layout>} />
         <Route path="/legal" element={<Layout><div className="pt-32 text-center">Legal Page Content</div></Layout>} />
 
         {/* Admin Routes without main Layout */}

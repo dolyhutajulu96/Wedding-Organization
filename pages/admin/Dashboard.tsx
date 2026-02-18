@@ -4,7 +4,7 @@ import { DataService } from '../../services/data';
 import { Inquiry, ServicePackage, Project, SiteContent, Testimonial, SiteSettings } from '../../types';
 import { DEFAULT_SITE_CONTENT, DEFAULT_SETTINGS } from '../../constants';
 import { Button } from '../../components/ui/Button';
-import { LogOut, LayoutDashboard, Users, FileText, Settings, Search, Filter, Save, Plus, Trash2, Edit2, Image as ImageIcon, MessageSquare, Star, ExternalLink, X, Check, DollarSign, Upload, Menu } from 'lucide-react';
+import { LogOut, LayoutDashboard, Users, FileText, Settings, Search, Filter, Save, Plus, Trash2, Edit2, Image as ImageIcon, MessageSquare, Star, ExternalLink, X, Check, DollarSign, Upload, Menu, Calendar, Clock, Tag } from 'lucide-react';
 import { auth } from '../../services/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 
@@ -84,8 +84,11 @@ export const Dashboard: React.FC = () => {
   const [errors, setErrors] = useState<Record<string, string>>({}); // Validation Errors
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile Sidebar Toggle
   
+  // Content Tab State
+  const [contentSubTab, setContentSubTab] = useState<'home' | 'services' | 'about'>('home');
+
   // Modal State
-  const [modalType, setModalType] = useState<'project' | 'package' | 'testimonial' | null>(null);
+  const [modalType, setModalType] = useState<'project' | 'package' | 'testimonial' | 'inquiry' | null>(null);
   const [newItemData, setNewItemData] = useState<any>({});
   
   const navigate = useNavigate();
@@ -128,6 +131,17 @@ export const Dashboard: React.FC = () => {
 
   // --- Helper Functions ---
   
+  const formatDate = (isoString: string) => {
+    if (!isoString) return '-';
+    return new Date(isoString).toLocaleString('id-ID', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+  
   // Convert File to Base64 String
   const convertToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -156,13 +170,25 @@ export const Dashboard: React.FC = () => {
   };
 
   // --- Content Management Handlers ---
-  const handleContentChange = (section: keyof SiteContent | 'hero' | 'ctaSection', field: string, value: string) => {
-    if (section === 'hero' || section === 'ctaSection') {
-      setSiteContent(prev => ({
-        ...prev,
-        [section]: { ...prev[section], [field]: value }
-      }));
-    }
+  const handleContentChange = (
+    section: keyof SiteContent | string, // Use string to support nested paths like 'servicesPage.header'
+    field: string, 
+    value: string
+  ) => {
+    const sectionParts = section.split('.');
+    
+    setSiteContent(prev => {
+      // Deep Copy
+      const newContent = JSON.parse(JSON.stringify(prev));
+      
+      let target = newContent;
+      for (const part of sectionParts) {
+        if (!target[part]) target[part] = {};
+        target = target[part];
+      }
+      target[field] = value;
+      return newContent;
+    });
   };
 
   const handleSignatureChange = (index: number, field: string, value: string) => {
@@ -231,7 +257,7 @@ export const Dashboard: React.FC = () => {
     }
   };
 
-  const openModal = (type: 'project' | 'package' | 'testimonial') => {
+  const openModal = (type: 'project' | 'package' | 'testimonial' | 'inquiry') => {
     setModalType(type);
     setNewItemData({}); // Clear for new item
     setErrors({}); // Clear validation errors
@@ -272,6 +298,11 @@ export const Dashboard: React.FC = () => {
     } else if (modalType === 'testimonial') {
        if (!newItemData.name?.trim()) newErrors.name = "Client Name is required.";
        if (!newItemData.quote?.trim()) newErrors.quote = "Review Quote is required.";
+    } else if (modalType === 'inquiry') {
+       if (!newItemData.name?.trim()) newErrors.name = "Client Name is required.";
+       if (!newItemData.email?.trim()) newErrors.email = "Email is required.";
+       if (!newItemData.phone?.trim()) newErrors.phone = "Phone is required.";
+       if (!newItemData.eventDate?.trim()) newErrors.eventDate = "Event Date is required.";
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -296,7 +327,8 @@ export const Dashboard: React.FC = () => {
             ? newItemData.themeTags.split(',').map((t: string) => t.trim()).filter(Boolean) 
             : newItemData.themeTags || ['Wedding'],
           description: newItemData.description || '',
-          vendors: newItemData.vendors || []
+          vendors: newItemData.vendors || [],
+          isFeatured: newItemData.isFeatured || false
         };
         await DataService.saveProject(newItem);
         setProjects(prev => isEditing ? prev.map(p => p.id === id ? newItem : p) : [newItem, ...prev]);
@@ -326,6 +358,24 @@ export const Dashboard: React.FC = () => {
         };
         await DataService.saveTestimonial(newItem);
         setTestimonials(prev => isEditing ? prev.map(t => t.id === id ? newItem : t) : [...prev, newItem]);
+
+      } else if (modalType === 'inquiry') {
+         // Handle Manual Inquiry Addition
+         const inquiryData = {
+            name: newItemData.name,
+            email: newItemData.email,
+            phone: newItemData.phone,
+            eventDate: newItemData.eventDate,
+            budgetRange: newItemData.budgetRange || 'Not specified',
+            message: newItemData.message || 'Added via Admin Dashboard',
+            serviceInterested: newItemData.serviceInterested ? [newItemData.serviceInterested] : []
+         };
+         
+         await DataService.submitInquiry(inquiryData);
+         
+         // Refresh inquiries list
+         const updatedInquiries = await DataService.getInquiries();
+         setInquiries(updatedInquiries);
       }
       closeModal();
     } catch (e) {
@@ -406,7 +456,7 @@ export const Dashboard: React.FC = () => {
 
           <nav className="flex-grow px-4 space-y-1 mt-2 overflow-y-auto">
             <SidebarItem id="inquiries" icon={Users} label="Inquiries" />
-            <SidebarItem id="content" icon={FileText} label="Landing Page" />
+            <SidebarItem id="pages" icon={FileText} label="Pages Content" />
             <SidebarItem id="testimonials" icon={MessageSquare} label="Testimonials" />
             <SidebarItem id="portfolio" icon={ImageIcon} label="Portfolio" />
             <SidebarItem id="packages" icon={Check} label="Packages" />
@@ -454,15 +504,19 @@ export const Dashboard: React.FC = () => {
           {activeTab === 'inquiries' && (
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
               <div className="p-4 md:p-6 border-b border-gray-100 flex flex-col md:flex-row gap-4 justify-between items-center bg-gray-50/50">
-                 <div className="relative w-full md:w-96">
-                   <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                   <StyledInput 
-                     placeholder="Search..." 
-                     value={searchQuery}
-                     onChange={(e) => setSearchQuery(e.target.value)}
-                     style={{ paddingLeft: '2.5rem' }}
-                   />
+                 <div className="flex items-center gap-2 w-full md:w-auto">
+                    <div className="relative w-full md:w-80">
+                      <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                      <StyledInput 
+                        placeholder="Search..." 
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        style={{ paddingLeft: '2.5rem' }}
+                      />
+                    </div>
+                    <Button size="sm" onClick={() => openModal('inquiry')} className="whitespace-nowrap px-4"><Plus size={16} className="mr-1" /> Add Inquiry</Button>
                  </div>
+                 
                  <div className="flex w-full md:w-auto items-center gap-3">
                    <Filter size={18} className="text-gray-400 hidden md:block" />
                    <select 
@@ -481,38 +535,54 @@ export const Dashboard: React.FC = () => {
                 <table className="w-full text-left text-sm text-gray-600 min-w-[800px]">
                   <thead className="bg-gray-50 text-gray-500 font-bold uppercase tracking-wider text-xs border-b border-gray-200">
                     <tr>
-                      <th className="px-6 py-4">Client</th>
+                      <th className="px-6 py-4">Client Info</th>
                       <th className="px-6 py-4">Event Details</th>
-                      <th className="px-6 py-4">Budget</th>
-                      <th className="px-6 py-4">Status</th>
+                      <th className="px-6 py-4">Status & Date</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {sortedInquiries.map((inq, idx) => (
                       <tr key={idx} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-4">
+                        <td className="px-6 py-4 align-top w-1/3">
                           <div className="font-bold text-dark text-base">{inq.name}</div>
-                          <div className="text-xs text-gray-400 mt-1">{inq.email}</div>
-                          <div className="text-xs text-gray-400">{inq.phone}</div>
+                          <div className="flex items-center text-xs text-gray-500 mt-1"><span className="text-gray-400 w-12">Email:</span> {inq.email}</div>
+                          <div className="flex items-center text-xs text-gray-500"><span className="text-gray-400 w-12">Phone:</span> {inq.phone}</div>
+                          <div className="flex items-center text-xs text-gray-500 mt-1"><span className="text-gray-400 w-12">Budget:</span> <span className="bg-gray-100 px-1.5 rounded font-mono">{inq.budgetRange}</span></div>
                         </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2 mb-1"><span className="font-bold text-gray-700">{inq.eventDate}</span></div>
-                          <div className="text-xs text-gray-500 max-w-xs truncate" title={inq.message}>{inq.message || 'No message'}</div>
+                        <td className="px-6 py-4 align-top w-1/3">
+                          <div className="flex items-center gap-2 mb-2">
+                             <Calendar size={14} className="text-primary" />
+                             <span className="font-bold text-gray-700">{inq.eventDate}</span>
+                          </div>
+                          {inq.serviceInterested && inq.serviceInterested.length > 0 && (
+                            <div className="mb-2 flex flex-wrap gap-1">
+                              {inq.serviceInterested.map(s => <span key={s} className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100 flex items-center"><Tag size={10} className="mr-1"/> {s}</span>)}
+                            </div>
+                          )}
+                          <div className="text-xs text-gray-500 p-2 bg-gray-50 rounded border border-gray-100 min-h-[40px]">
+                            {inq.message || 'No additional message.'}
+                          </div>
                         </td>
-                        <td className="px-6 py-4"><span className="bg-gray-100 px-2 py-1 rounded text-xs font-mono text-dark">{inq.budgetRange}</span></td>
-                        <td className="px-6 py-4">
-                          <select 
-                            className={`px-3 py-1.5 rounded-full text-xs font-bold border-none outline-none cursor-pointer shadow-sm transition-all ${
-                              inq.status === 'new' ? 'bg-green-100 text-green-700 hover:bg-green-200' : 
-                              inq.status === 'contacted' ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 
-                              'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-                            value={inq.status}
-                            onChange={(e) => handleStatusChange(inq.id, e.target.value as any)}
-                          >
-                            <option value="new">NEW</option>
-                            <option value="contacted">CONTACTED</option>
-                            <option value="closed">CLOSED</option>
-                          </select>
+                        <td className="px-6 py-4 align-top">
+                          <div className="flex flex-col gap-2">
+                            <select 
+                              className={`px-3 py-1.5 rounded-full text-xs font-bold border-none outline-none cursor-pointer shadow-sm transition-all w-fit ${
+                                inq.status === 'new' ? 'bg-green-100 text-green-700 hover:bg-green-200' : 
+                                inq.status === 'contacted' ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 
+                                'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                              value={inq.status}
+                              onChange={(e) => handleStatusChange(inq.id, e.target.value as any)}
+                            >
+                              <option value="new">NEW</option>
+                              <option value="contacted">CONTACTED</option>
+                              <option value="closed">CLOSED</option>
+                            </select>
+                            
+                            <div className="flex items-center text-[10px] text-gray-400 mt-1" title="Date Submitted">
+                               <Clock size={10} className="mr-1" />
+                               Submitted: {formatDate(inq.createdAt)}
+                            </div>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -522,158 +592,140 @@ export const Dashboard: React.FC = () => {
             </div>
           )}
 
-          {/* --- CONTENT TAB --- */}
-          {activeTab === 'content' && (
+          {/* --- PAGES CONTENT TAB --- */}
+          {activeTab === 'pages' && (
             <div className="space-y-6 md:space-y-8 animate-fade-in pb-20">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-4 rounded-xl border border-gray-200 shadow-sm sticky top-0 z-20 gap-3">
                  <div>
-                    <h3 className="font-bold text-dark">Landing Page Content</h3>
-                    <p className="text-xs text-gray-500">Live updates for the home page.</p>
+                    <h3 className="font-bold text-dark">Pages Content</h3>
+                    <p className="text-xs text-gray-500">Edit texts and images for main pages.</p>
                  </div>
+                 
+                 <div className="flex gap-2 bg-gray-100 p-1 rounded-lg">
+                   {(['home', 'services', 'about'] as const).map(tab => (
+                     <button
+                       key={tab}
+                       onClick={() => setContentSubTab(tab)}
+                       className={`px-4 py-2 text-xs font-bold uppercase rounded-md transition-all ${contentSubTab === tab ? 'bg-white shadow text-primary' : 'text-gray-500 hover:bg-gray-200'}`}
+                     >
+                       {tab}
+                     </button>
+                   ))}
+                 </div>
+
                  <Button onClick={saveContent} disabled={isSaving} className="shadow-lg w-full md:w-auto" size="sm">
                    <Save size={16} className="mr-2" />
                    {isSaving ? 'Saving...' : 'Publish'}
                  </Button>
               </div>
 
-              {/* Hero Section Editor */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-8">
-                <h3 className="text-lg font-bold text-dark font-serif mb-6 border-b border-gray-100 pb-2">Hero Section</h3>
-                <div className="grid gap-6">
-                  <InputGroup label="Headline">
-                    <StyledTextArea 
-                      rows={2} 
-                      value={siteContent.hero.headline}
-                      onChange={(e) => handleContentChange('hero', 'headline', e.target.value)}
-                    />
-                  </InputGroup>
-                  <InputGroup label="Subheadline">
-                    <StyledInput 
-                      value={siteContent.hero.subheadline}
-                      onChange={(e) => handleContentChange('hero', 'subheadline', e.target.value)}
-                    />
-                  </InputGroup>
-                  
-                  <div className="grid md:grid-cols-2 gap-8">
-                     <div>
-                       <InputGroup label="CTA Button Text">
-                          <StyledInput 
-                            value={siteContent.hero.ctaText}
-                            onChange={(e) => handleContentChange('hero', 'ctaText', e.target.value)}
-                          />
-                       </InputGroup>
-                       <InputGroup label="Background Image">
-                          <div className="space-y-3">
-                            <div className="flex gap-2">
-                               <StyledInput 
-                                 value={siteContent.hero.backgroundImage}
-                                 onChange={(e) => handleContentChange('hero', 'backgroundImage', e.target.value)}
-                                 placeholder="Enter Image URL (e.g. .jpg, .png)"
-                               />
-                               <a href={siteContent.hero.backgroundImage} target="_blank" rel="noreferrer" className="p-2.5 bg-gray-50 border border-gray-300 rounded-lg hover:bg-gray-100 text-gray-600 transition-colors">
-                                  <ExternalLink size={20} />
-                               </a>
-                            </div>
-                            
-                            <p className="text-[10px] text-gray-400 -mt-2 italic">
-                              Pastikan link adalah <strong>Direct Link</strong> (berakhiran .jpg/.png) agar gambar muncul. Link Google Drive/Dropbox seringkali Private.
-                            </p>
-
-                            <div className="relative border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:bg-gray-50 transition-colors cursor-pointer group">
-                               <input 
-                                 type="file" 
-                                 accept="image/*" 
-                                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                 onChange={(e) => handleImageUpload(e, (base64) => handleContentChange('hero', 'backgroundImage', base64))}
-                               />
-                               <div className="flex flex-col items-center justify-center text-gray-400 group-hover:text-primary">
-                                 <Upload size={24} className="mb-2" />
-                                 <span className="text-xs font-bold uppercase">Click to Upload File (Max 500KB)</span>
-                               </div>
-                            </div>
-                          </div>
-                       </InputGroup>
-                     </div>
-                     
-                     <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Preview</label>
-                        <div className="relative w-full h-40 rounded-lg overflow-hidden border border-gray-300 bg-gray-100 shadow-inner group">
-                          <img 
-                            src={siteContent.hero.backgroundImage} 
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-                            referrerPolicy="no-referrer"
-                            onError={(e) => (e.currentTarget.src = 'https://via.placeholder.com/800x400?text=Invalid+Direct+Link')}
-                          />
-                          <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center text-center px-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                             <span className="text-white text-xs font-serif opacity-80 mb-2">{siteContent.hero.headline}</span>
-                             <button 
-                                onClick={() => handleContentChange('hero', 'backgroundImage', '')}
-                                className="bg-red-500 text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-md hover:bg-red-600 transition-colors flex items-center"
-                              >
-                                <Trash2 size={12} className="mr-1" /> Remove
-                              </button>
-                          </div>
-                        </div>
-                     </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Signature Style Editor */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-8">
-                <h3 className="text-lg font-bold text-dark font-serif mb-6 border-b border-gray-100 pb-2">Signature Styles</h3>
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {siteContent.signatureStyles.map((style, idx) => (
-                    <div key={style.id} className="p-6 border border-gray-200 rounded-xl bg-gray-50">
-                      <div className="flex justify-between items-center mb-4">
-                         <span className="text-xs font-bold bg-white border border-gray-200 px-2 py-1 rounded text-gray-500">#{idx + 1}</span>
-                         <span className="text-xs font-bold text-primary uppercase">{style.iconName}</span>
-                      </div>
-                      <InputGroup label="Title">
-                        <StyledInput 
-                          value={style.title}
-                          onChange={(e) => handleSignatureChange(idx, 'title', e.target.value)}
-                        />
+              {/* HOME PAGE EDITOR */}
+              {contentSubTab === 'home' && (
+                <>
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-8">
+                    <h3 className="text-lg font-bold text-dark font-serif mb-6 border-b border-gray-100 pb-2">Hero Section</h3>
+                    <div className="grid gap-6">
+                      <InputGroup label="Headline">
+                        <StyledTextArea rows={2} value={siteContent.hero.headline} onChange={(e) => handleContentChange('hero', 'headline', e.target.value)} />
                       </InputGroup>
-                      <InputGroup label="Description">
-                        <StyledTextArea 
-                          rows={3}
-                          value={style.description}
-                          onChange={(e) => handleSignatureChange(idx, 'description', e.target.value)}
-                        />
+                      <InputGroup label="Subheadline">
+                        <StyledInput value={siteContent.hero.subheadline} onChange={(e) => handleContentChange('hero', 'subheadline', e.target.value)} />
+                      </InputGroup>
+                      <InputGroup label="CTA Button Text">
+                        <StyledInput value={siteContent.hero.ctaText} onChange={(e) => handleContentChange('hero', 'ctaText', e.target.value)} />
+                      </InputGroup>
+                      <InputGroup label="Background Image">
+                        <StyledInput value={siteContent.hero.backgroundImage} onChange={(e) => handleContentChange('hero', 'backgroundImage', e.target.value)} />
+                        <div className="mt-2 h-32 w-full bg-gray-100 rounded overflow-hidden">
+                           <img src={siteContent.hero.backgroundImage} className="w-full h-full object-cover" />
+                        </div>
                       </InputGroup>
                     </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* CTA Section Editor */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-8">
-                <h3 className="text-lg font-bold text-dark font-serif mb-6 border-b border-gray-100 pb-2">Call to Action (Footer)</h3>
-                <div className="grid md:grid-cols-2 gap-8">
-                  <div className="space-y-4">
-                    <InputGroup label="Section Title">
-                      <StyledInput 
-                        value={siteContent.ctaSection.title}
-                        onChange={(e) => handleContentChange('ctaSection', 'title', e.target.value)}
-                      />
-                    </InputGroup>
-                    <InputGroup label="Button Text">
-                      <StyledInput 
-                        value={siteContent.ctaSection.buttonText}
-                        onChange={(e) => handleContentChange('ctaSection', 'buttonText', e.target.value)}
-                      />
-                    </InputGroup>
                   </div>
-                  <InputGroup label="Description">
-                    <StyledTextArea 
-                      rows={5}
-                      value={siteContent.ctaSection.description}
-                      onChange={(e) => handleContentChange('ctaSection', 'description', e.target.value)}
-                    />
-                  </InputGroup>
-                </div>
-              </div>
+
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-8">
+                    <h3 className="text-lg font-bold text-dark font-serif mb-6 border-b border-gray-100 pb-2">Signature Styles</h3>
+                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {siteContent.signatureStyles.map((style, idx) => (
+                        <div key={style.id} className="p-4 border border-gray-200 rounded-xl bg-gray-50">
+                          <span className="text-xs font-bold text-primary block mb-2">{style.iconName} Icon</span>
+                          <InputGroup label="Title">
+                            <StyledInput value={style.title} onChange={(e) => handleSignatureChange(idx, 'title', e.target.value)} />
+                          </InputGroup>
+                          <InputGroup label="Description">
+                            <StyledTextArea rows={3} value={style.description} onChange={(e) => handleSignatureChange(idx, 'description', e.target.value)} />
+                          </InputGroup>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-8">
+                    <h3 className="text-lg font-bold text-dark font-serif mb-6 border-b border-gray-100 pb-2">CTA Section</h3>
+                    <div className="grid md:grid-cols-2 gap-6">
+                      <InputGroup label="Title">
+                         <StyledInput value={siteContent.ctaSection.title} onChange={(e) => handleContentChange('ctaSection', 'title', e.target.value)} />
+                      </InputGroup>
+                      <InputGroup label="Button Text">
+                         <StyledInput value={siteContent.ctaSection.buttonText} onChange={(e) => handleContentChange('ctaSection', 'buttonText', e.target.value)} />
+                      </InputGroup>
+                      <div className="md:col-span-2">
+                        <InputGroup label="Description">
+                          <StyledTextArea rows={3} value={siteContent.ctaSection.description} onChange={(e) => handleContentChange('ctaSection', 'description', e.target.value)} />
+                        </InputGroup>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* SERVICES PAGE EDITOR */}
+              {contentSubTab === 'services' && (
+                <>
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-8">
+                    <h3 className="text-lg font-bold text-dark font-serif mb-6 border-b border-gray-100 pb-2">Header</h3>
+                    <InputGroup label="Title"><StyledInput value={siteContent.servicesPage?.header.title} onChange={(e) => handleContentChange('servicesPage.header', 'title', e.target.value)} /></InputGroup>
+                    <InputGroup label="Subtitle"><StyledInput value={siteContent.servicesPage?.header.subtitle} onChange={(e) => handleContentChange('servicesPage.header', 'subtitle', e.target.value)} /></InputGroup>
+                    <InputGroup label="Description"><StyledTextArea rows={3} value={siteContent.servicesPage?.header.description} onChange={(e) => handleContentChange('servicesPage.header', 'description', e.target.value)} /></InputGroup>
+                  </div>
+                  
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-8">
+                    <h3 className="text-lg font-bold text-dark font-serif mb-6 border-b border-gray-100 pb-2">Section 1 (Full Planning)</h3>
+                    <InputGroup label="Title"><StyledInput value={siteContent.servicesPage?.section1.title} onChange={(e) => handleContentChange('servicesPage.section1', 'title', e.target.value)} /></InputGroup>
+                    <InputGroup label="Subtitle"><StyledInput value={siteContent.servicesPage?.section1.subtitle} onChange={(e) => handleContentChange('servicesPage.section1', 'subtitle', e.target.value)} /></InputGroup>
+                    <InputGroup label="Description"><StyledTextArea rows={4} value={siteContent.servicesPage?.section1.description} onChange={(e) => handleContentChange('servicesPage.section1', 'description', e.target.value)} /></InputGroup>
+                    <InputGroup label="Image URL"><StyledInput value={siteContent.servicesPage?.section1.image} onChange={(e) => handleContentChange('servicesPage.section1', 'image', e.target.value)} /></InputGroup>
+                  </div>
+
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-8">
+                    <h3 className="text-lg font-bold text-dark font-serif mb-6 border-b border-gray-100 pb-2">Section 2 (Day-of)</h3>
+                    <InputGroup label="Title"><StyledInput value={siteContent.servicesPage?.section2.title} onChange={(e) => handleContentChange('servicesPage.section2', 'title', e.target.value)} /></InputGroup>
+                    <InputGroup label="Subtitle"><StyledInput value={siteContent.servicesPage?.section2.subtitle} onChange={(e) => handleContentChange('servicesPage.section2', 'subtitle', e.target.value)} /></InputGroup>
+                    <InputGroup label="Description"><StyledTextArea rows={4} value={siteContent.servicesPage?.section2.description} onChange={(e) => handleContentChange('servicesPage.section2', 'description', e.target.value)} /></InputGroup>
+                    <InputGroup label="Image URL"><StyledInput value={siteContent.servicesPage?.section2.image} onChange={(e) => handleContentChange('servicesPage.section2', 'image', e.target.value)} /></InputGroup>
+                  </div>
+                </>
+              )}
+
+              {/* ABOUT PAGE EDITOR */}
+              {contentSubTab === 'about' && (
+                <>
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-8">
+                    <h3 className="text-lg font-bold text-dark font-serif mb-6 border-b border-gray-100 pb-2">Header</h3>
+                    <InputGroup label="Title"><StyledInput value={siteContent.aboutPage?.header.title} onChange={(e) => handleContentChange('aboutPage.header', 'title', e.target.value)} /></InputGroup>
+                    <InputGroup label="Subtitle"><StyledInput value={siteContent.aboutPage?.header.subtitle} onChange={(e) => handleContentChange('aboutPage.header', 'subtitle', e.target.value)} /></InputGroup>
+                    <InputGroup label="Description"><StyledTextArea rows={3} value={siteContent.aboutPage?.header.description} onChange={(e) => handleContentChange('aboutPage.header', 'description', e.target.value)} /></InputGroup>
+                    <InputGroup label="Background Image"><StyledInput value={siteContent.aboutPage?.header.image} onChange={(e) => handleContentChange('aboutPage.header', 'image', e.target.value)} /></InputGroup>
+                  </div>
+
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-8">
+                    <h3 className="text-lg font-bold text-dark font-serif mb-6 border-b border-gray-100 pb-2">Our Story</h3>
+                    <InputGroup label="Title"><StyledInput value={siteContent.aboutPage?.story.title} onChange={(e) => handleContentChange('aboutPage.story', 'title', e.target.value)} /></InputGroup>
+                    <InputGroup label="Description"><StyledTextArea rows={6} value={siteContent.aboutPage?.story.description} onChange={(e) => handleContentChange('aboutPage.story', 'description', e.target.value)} /></InputGroup>
+                    <InputGroup label="Image URL"><StyledInput value={siteContent.aboutPage?.story.image} onChange={(e) => handleContentChange('aboutPage.story', 'image', e.target.value)} /></InputGroup>
+                  </div>
+                </>
+              )}
 
             </div>
           )}
@@ -725,7 +777,15 @@ export const Dashboard: React.FC = () => {
                   <div key={project.id} className="bg-white border border-gray-200 rounded-xl overflow-hidden group hover:shadow-lg transition-all">
                     <div className="relative h-48 bg-gray-100">
                       <img src={project.coverImage} className="w-full h-full object-cover" alt={project.title} referrerPolicy="no-referrer" />
-                      <div className="absolute top-2 right-2 flex gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                      
+                      {/* FEATURED BADGE */}
+                      {project.isFeatured && (
+                        <div className="absolute top-2 left-2 bg-primary text-white text-[10px] font-bold px-2 py-1 rounded shadow-sm z-10 uppercase tracking-wider">
+                          Featured
+                        </div>
+                      )}
+                      
+                      <div className="absolute top-2 right-2 flex gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity z-10">
                          <button onClick={() => openEditModal('project', project)} className="p-2 bg-white rounded-full text-blue-500 hover:bg-blue-50 hover:text-blue-600 shadow-sm transition-colors"><Edit2 size={14} /></button>
                          <button onClick={() => handleDelete('project', project.id)} className="p-2 bg-white rounded-full text-red-500 hover:bg-red-50 hover:text-red-600 shadow-sm transition-colors"><Trash2 size={14} /></button>
                       </div>
@@ -904,6 +964,11 @@ export const Dashboard: React.FC = () => {
           <InputGroup label="Short Description">
             <StyledTextArea rows={3} value={newItemData.description || ''} onChange={e => setNewItemData({...newItemData, description: e.target.value})} />
           </InputGroup>
+          
+          <div className="flex items-center gap-2">
+             <input type="checkbox" id="projectFeatured" checked={newItemData.isFeatured || false} onChange={e => setNewItemData({...newItemData, isFeatured: e.target.checked})} className="rounded text-primary focus:ring-primary w-4 h-4 cursor-pointer" />
+             <label htmlFor="projectFeatured" className="text-sm font-semibold text-gray-700 select-none cursor-pointer">Set as Featured Project</label>
+          </div>
         </div>
       </Modal>
 
@@ -947,6 +1012,63 @@ export const Dashboard: React.FC = () => {
           </InputGroup>
           <InputGroup label="Review Quote" required error={errors.quote}>
             <StyledTextArea hasError={!!errors.quote} rows={4} value={newItemData.quote || ''} onChange={e => setNewItemData({...newItemData, quote: e.target.value})} />
+          </InputGroup>
+        </div>
+      </Modal>
+      
+      {/* ADDED: Inquiry Modal (Manual Add) */}
+      <Modal 
+        isOpen={modalType === 'inquiry'} 
+        onClose={closeModal} 
+        title="Add New Inquiry (Manual)"
+        footer={<><Button variant="outline" onClick={closeModal} size="sm" fullWidth>Cancel</Button><Button onClick={handleSaveItem} size="sm" fullWidth>Add Inquiry</Button></>}
+      >
+        <div className="space-y-4">
+          <InputGroup label="Client Name" required error={errors.name}>
+            <StyledInput hasError={!!errors.name} value={newItemData.name || ''} onChange={e => setNewItemData({...newItemData, name: e.target.value})} placeholder="Full Name" />
+          </InputGroup>
+          <div className="grid grid-cols-2 gap-4">
+            <InputGroup label="Email" required error={errors.email}>
+              <StyledInput hasError={!!errors.email} type="email" value={newItemData.email || ''} onChange={e => setNewItemData({...newItemData, email: e.target.value})} placeholder="client@email.com" />
+            </InputGroup>
+            <InputGroup label="Phone" required error={errors.phone}>
+              <StyledInput hasError={!!errors.phone} value={newItemData.phone || ''} onChange={e => setNewItemData({...newItemData, phone: e.target.value})} placeholder="08..." />
+            </InputGroup>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <InputGroup label="Event Date" required error={errors.eventDate}>
+               <StyledInput type="date" hasError={!!errors.eventDate} value={newItemData.eventDate || ''} onChange={e => setNewItemData({...newItemData, eventDate: e.target.value})} />
+            </InputGroup>
+            <InputGroup label="Service Interested">
+               <select 
+                 className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                 value={newItemData.serviceInterested || ''}
+                 onChange={e => setNewItemData({...newItemData, serviceInterested: e.target.value})}
+               >
+                 <option value="">Select Package...</option>
+                 {packages.map((pkg) => (
+                   <option key={pkg.id} value={pkg.name}>{pkg.name} ({pkg.priceFrom})</option>
+                 ))}
+                 <option value="Custom">Custom / Other</option>
+               </select>
+            </InputGroup>
+          </div>
+          <div className="grid grid-cols-1 gap-4">
+            <InputGroup label="Budget Range">
+               <select 
+                 className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                 value={newItemData.budgetRange || ''}
+                 onChange={e => setNewItemData({...newItemData, budgetRange: e.target.value})}
+               >
+                 <option value="">Select Range</option>
+                 {settings.budgetRanges.map((range, idx) => (
+                   <option key={idx} value={range}>{range}</option>
+                 ))}
+               </select>
+            </InputGroup>
+          </div>
+          <InputGroup label="Notes / Message">
+            <StyledTextArea rows={3} value={newItemData.message || ''} onChange={e => setNewItemData({...newItemData, message: e.target.value})} placeholder="Details about the wedding..." />
           </InputGroup>
         </div>
       </Modal>

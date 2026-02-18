@@ -1,9 +1,13 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper function to check if user is admin (authenticated)
+    // Helper function to check if user is the specific admin
+    // Ganti 'hello@asterandco.com' dengan email login Anda di Firebase Auth
     function isAdmin() {
-      return request.auth != null;
+      return request.auth != null && (
+        request.auth.token.email == 'hello@asterandco.com' || 
+        request.auth.token.email_verified == true // Optional: trust all verified emails if needed
+      );
     }
 
     // PUBLIC READ: Portfolio, Packages, Testimonials, Site Content, Settings, Blogs

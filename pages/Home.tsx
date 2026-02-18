@@ -4,13 +4,14 @@ import { Button } from '../components/ui/Button';
 import { DataService } from '../services/data';
 import { Project, Testimonial, SiteContent } from '../types';
 import { DEFAULT_SITE_CONTENT } from '../constants';
-import { ArrowRight, Star, Heart, Clock, Quote, Sparkles } from 'lucide-react';
+import { ArrowRight, Star, Heart, Clock, Quote, Sparkles, Plus, Minus, CheckCircle } from 'lucide-react';
 
 export const Home: React.FC = () => {
   const [featuredProjects, setFeaturedProjects] = useState<Project[]>([]);
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
   const [content, setContent] = useState<SiteContent>(DEFAULT_SITE_CONTENT);
   const [isLoading, setIsLoading] = useState(true);
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -21,7 +22,11 @@ export const Home: React.FC = () => {
           DataService.getSiteContent()
         ]);
         
-        setFeaturedProjects(projectsData.slice(0, 3));
+        // Filter projects by isFeatured flag
+        const featured = projectsData.filter(p => p.isFeatured);
+        // Fallback: if no featured projects, take top 3 latest
+        setFeaturedProjects(featured.length > 0 ? featured : projectsData.slice(0, 3));
+        
         setTestimonials(testimonialsData);
         setContent(siteContentData);
       } catch (error) {
@@ -33,6 +38,10 @@ export const Home: React.FC = () => {
 
     fetchData();
   }, []);
+
+  const toggleFaq = (index: number) => {
+    setOpenFaqIndex(openFaqIndex === index ? null : index);
+  };
 
   if (isLoading) {
     return <div className="h-screen flex items-center justify-center bg-secondary"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>;
@@ -62,7 +71,7 @@ export const Home: React.FC = () => {
             />
           </div>
           {/* Advanced Gradient Overlay for Readability */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-black/10 md:bg-black/40"></div>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/20 md:bg-black/40"></div>
         </div>
 
         <div className="relative z-10 container mx-auto px-6 pb-24 md:pb-0 text-white max-w-5xl">
@@ -78,12 +87,12 @@ export const Home: React.FC = () => {
           
           <div className="flex flex-col md:flex-row justify-center gap-4 w-full md:w-auto animate-slide-up" style={{ animationDelay: '0.4s' }}>
             <Link to="/contact" className="w-full md:w-auto">
-              <Button size="lg" variant="primary" className="w-full md:w-auto shadow-xl border border-transparent hover:border-primary-light">
+              <Button size="lg" variant="primary" className="w-full md:w-auto shadow-xl border border-transparent hover:border-primary-light uppercase tracking-widest text-xs font-bold py-5">
                 {content.hero.ctaText}
               </Button>
             </Link>
             <Link to="/portfolio" className="w-full md:w-auto">
-              <Button size="lg" variant="white" className="w-full md:w-auto bg-white/10 backdrop-blur-sm border border-white/30 text-white hover:bg-white hover:text-dark">
+              <Button size="lg" variant="white" className="w-full md:w-auto bg-white/10 backdrop-blur-sm border border-white/30 text-white hover:bg-white hover:text-dark uppercase tracking-widest text-xs font-bold py-5">
                 View Portfolio
               </Button>
             </Link>
@@ -91,8 +100,32 @@ export const Home: React.FC = () => {
         </div>
       </section>
 
+      {/* --- TRUST STATS STRIP (NEW) --- */}
+      <div className="bg-white border-b border-gray-100 py-10 relative z-20">
+         <div className="container mx-auto px-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center divide-x divide-gray-100/0 md:divide-gray-100">
+               <div>
+                  <div className="font-serif text-3xl md:text-4xl text-dark mb-1">200+</div>
+                  <div className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">Weddings Managed</div>
+               </div>
+               <div>
+                  <div className="font-serif text-3xl md:text-4xl text-dark mb-1">5+</div>
+                  <div className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">Years Experience</div>
+               </div>
+               <div>
+                  <div className="font-serif text-3xl md:text-4xl text-dark mb-1">50+</div>
+                  <div className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">Curated Vendors</div>
+               </div>
+               <div className="hidden md:block">
+                  <div className="font-serif text-3xl md:text-4xl text-dark mb-1">100%</div>
+                  <div className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">Happy Couples</div>
+               </div>
+            </div>
+         </div>
+      </div>
+
       {/* --- SIGNATURE STYLE --- */}
-      <section className="py-20 md:py-32 bg-white">
+      <section className="py-20 md:py-28 bg-white">
         <div className="container mx-auto px-6">
           <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-6">
             <div className="max-w-xl">
@@ -164,16 +197,40 @@ export const Home: React.FC = () => {
                </Link>
             </div>
           </div>
-          
-          <div className="mt-8 text-center md:hidden">
-             <p className="text-xs text-gray-500 italic">Swipe to explore</p>
-          </div>
         </div>
+      </section>
+
+      {/* --- HOW IT WORKS (PROCESS) (NEW) --- */}
+      <section className="py-20 md:py-32 bg-secondary">
+         <div className="container mx-auto px-6">
+            <div className="text-center mb-16 max-w-2xl mx-auto">
+               <span className="text-primary text-xs font-bold tracking-[0.2em] uppercase mb-3 block">The Journey</span>
+               <h2 className="font-serif text-3xl md:text-5xl text-dark">How We Work</h2>
+               <p className="text-gray-500 mt-4">Kami menyederhanakan proses perencanaan yang rumit menjadi langkah-langkah yang menyenangkan.</p>
+            </div>
+
+            <div className="relative">
+               {/* Line Connector for Desktop */}
+               <div className="hidden md:block absolute top-1/2 left-0 w-full h-0.5 bg-gray-200 -translate-y-1/2 z-0"></div>
+               
+               <div className="grid grid-cols-1 md:grid-cols-5 gap-8 relative z-10">
+                  {content.process && content.process.map((step, idx) => (
+                     <div key={idx} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 md:border-none md:shadow-none md:bg-transparent text-center md:text-left">
+                        <div className="w-12 h-12 bg-primary text-white rounded-full flex items-center justify-center font-serif text-xl font-bold mb-4 mx-auto md:mx-0 relative z-10 ring-4 ring-white md:ring-secondary">
+                           {step.number}
+                        </div>
+                        <h3 className="font-bold text-dark text-lg mb-2">{step.title}</h3>
+                        <p className="text-sm text-gray-500 leading-relaxed">{step.description}</p>
+                     </div>
+                  ))}
+               </div>
+            </div>
+         </div>
       </section>
 
       {/* --- TESTIMONIALS --- */}
       {testimonials.length > 0 && (
-        <section className="py-20 md:py-32 bg-secondary relative">
+        <section className="py-20 md:py-32 bg-white relative">
           <div className="container mx-auto px-6">
             <div className="text-center mb-16 max-w-2xl mx-auto">
               <Quote className="text-primary/20 mx-auto mb-6" size={60} />
@@ -182,14 +239,14 @@ export const Home: React.FC = () => {
             
             <div className="grid md:grid-cols-2 gap-8 md:gap-12 max-w-5xl mx-auto">
               {testimonials.map((testi) => (
-                <div key={testi.id} className="bg-white p-8 md:p-10 rounded-sm shadow-sm border border-gray-100 hover:shadow-xl transition-shadow duration-300">
+                <div key={testi.id} className="bg-secondary p-8 md:p-10 rounded-sm hover:shadow-xl transition-shadow duration-300">
                   <div className="flex text-primary mb-6">
                     {[...Array(5)].map((_, i) => (
                       <Star key={i} size={14} fill={i < testi.rating ? "currentColor" : "none"} className={i < testi.rating ? "" : "text-gray-200"} />
                     ))}
                   </div>
                   <p className="text-gray-600 italic text-lg mb-8 leading-relaxed font-serif">"{testi.quote}"</p>
-                  <div className="flex items-center border-t border-gray-50 pt-6">
+                  <div className="flex items-center border-t border-gray-200 pt-6">
                     <div>
                       <h4 className="font-bold text-dark text-sm uppercase tracking-wider">{testi.name}</h4>
                       <p className="text-xs text-gray-400 mt-1">{testi.role} • {testi.eventType}</p>
@@ -201,6 +258,31 @@ export const Home: React.FC = () => {
           </div>
         </section>
       )}
+
+      {/* --- FAQ SECTION (NEW) --- */}
+      <section className="py-20 bg-secondary/50">
+         <div className="container mx-auto px-6 max-w-4xl">
+            <div className="text-center mb-12">
+               <h2 className="font-serif text-3xl text-dark">Common Questions</h2>
+            </div>
+            <div className="space-y-4">
+               {content.faq && content.faq.map((item, idx) => (
+                  <div key={idx} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                     <button 
+                        onClick={() => toggleFaq(idx)}
+                        className="w-full px-6 py-4 text-left flex justify-between items-center focus:outline-none hover:bg-gray-50 transition-colors"
+                     >
+                        <span className="font-bold text-dark text-sm md:text-base">{item.question}</span>
+                        {openFaqIndex === idx ? <Minus size={18} className="text-primary" /> : <Plus size={18} className="text-gray-400" />}
+                     </button>
+                     <div className={`px-6 text-gray-600 text-sm leading-relaxed transition-all duration-300 ease-in-out overflow-hidden ${openFaqIndex === idx ? 'max-h-48 py-4 border-t border-gray-100' : 'max-h-0'}`}>
+                        {item.answer}
+                     </div>
+                  </div>
+               ))}
+            </div>
+         </div>
+      </section>
 
       {/* --- CTA SECTION --- */}
       <section className="py-24 md:py-32 bg-white text-center relative overflow-hidden">
@@ -217,6 +299,9 @@ export const Home: React.FC = () => {
               {content.ctaSection.buttonText}
             </Button>
           </Link>
+          <p className="mt-6 text-xs text-gray-400">
+             Limited slots available for {new Date().getFullYear()}. Secure your date now.
+          </p>
         </div>
       </section>
     </div>
